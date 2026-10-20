@@ -42,20 +42,20 @@ const login = TryCatch(async (req, res, next) => {
     if (!user) {
         return next(new ErrorHandler("Invalid username", 404));
     }
-    const isPasswordMatch = compare(password, user.password);
+    const isPasswordMatch = await compare(password, user.password);
     if (!isPasswordMatch) {
         return next(new ErrorHandler("Invalid password", 401));
     }
     generateToken(res, user, 201, `Welcome back, ${user.name}`);
 });
 
-const getUserProfile = async (req, res) => {
+const getUserProfile = TryCatch(async (req, res) => {
     const user = await User.findById({ _id: req.user });
     return res.status(200).json({
         success: true,
         user: user
     });
-};
+});
 
 const logout = TryCatch(async (req, res) => {
     return res.status(200)
@@ -167,7 +167,7 @@ const getMyNotifications = TryCatch(async (req, res, next) => {
     });
 });
 
-const getMyFriends = TryCatch(async (req, res) => {
+const getMyFriends = TryCatch(async (req, res, next) => {
     const chatId = req.query.chatId;
     const chats = await Chat.find({
         members: req.user,
@@ -185,6 +185,9 @@ const getMyFriends = TryCatch(async (req, res) => {
 
     if (chatId) {
         const chat = await Chat.findById({ _id: chatId });
+        if (!chat) {
+            return next(new ErrorHandler("Chat not found", 404));
+        }
         const availableFriends = friends.filter((friend) => !chat.members.includes(friend._id));
         return res.status(200).json({
             success: true,

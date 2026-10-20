@@ -1,7 +1,7 @@
+import "dotenv/config";
 import { v2 as cloudinary } from "cloudinary";
 import cookieParser from "cookie-parser";
 import cors from "cors";
-import dotenv from "dotenv";
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
@@ -17,16 +17,14 @@ import userRoutes from "./routes/user.routes.js";
 import { connectToDb } from "./utils/features.js";
 import { getSockets } from "./utils/helper.js";
 
-const allowedOrigins = ['http://localhost:5173', process.env.CLIENT_URL];
-
-dotenv.config({ path: "./.env" });
+const allowedOrigins = ['http://localhost:5173', process.env.CLIENT_URL].filter(Boolean);
 
 const userSocketIds = new Map();
 const onlineUsers = new Set();
 
 const app = express();
 const server = createServer(app);
-const io = new Server(server, { origin: allowedOrigins, credentials: true });
+const io = new Server(server, { cors: { origin: allowedOrigins, credentials: true } });
 
 app.set("io", io);
 const PORT = AppConfig.PORT;

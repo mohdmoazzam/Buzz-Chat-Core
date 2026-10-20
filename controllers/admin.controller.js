@@ -9,11 +9,11 @@ import { ErrorHandler } from "../utils/utility.js";
 const adminLogin = TryCatch(async (req, res, next) => {
     const { secretKey } = req.body;
     const adminSecretKey = process.env.ADMIN_SECRET_KEY;
-    const isMatched = secretKey === adminSecretKey;
+    const isMatched = !!adminSecretKey && secretKey === adminSecretKey;
     if (!isMatched) {
         return next(new ErrorHandler("Invalid admin key", 401));
     } else {
-        const token = jwt.sign(secretKey, process.env.JWT_SECRET);
+        const token = jwt.sign(secretKey, AppConfig.JWT_SECRET);
         return res.status(201)
             .cookie(AppConfig.ADMIN_TOKEN_NAME, token, { ...cookieOptions, maxAge: 1000 * 60 * 15 })
             .json({
@@ -144,7 +144,7 @@ const getDashboardStats = TryCatch(async (req, res) => {
     const messages = new Array(7).fill(0);
     last7DaysMessages.forEach(message => {
         const index = Math.floor((today.getTime() - message.createdAt.getTime()) / (1000 * 60 * 60 * 24));
-        messages[6 - index]++;
+        if (index >= 0 && index < 7) messages[6 - index]++;
     })
     const stats = {
         groupsCount,

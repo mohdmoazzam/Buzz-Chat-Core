@@ -20,7 +20,7 @@ const adminOnly = TryCatch(async (req, res, next) => {
     if (!token) {
         return next(new ErrorHandler("Unauthorized", 401));
     }
-    const secretKey = jwt.verify(token, process.env.JWT_SECRET);
+    const secretKey = jwt.verify(token, AppConfig.JWT_SECRET);
     const adminSecretKey = process.env.ADMIN_SECRET_KEY;
     const isMatched = secretKey === adminSecretKey;
     if (!isMatched) {
@@ -40,11 +40,15 @@ const socketAuthenticator = async (socket, next) => {
         const token = authToken.replace('Bearer ', '');
         const decoded = jwt.verify(token, AppConfig.JWT_SECRET);
         const user = await User.findById(decoded._id);
+        if (!user) {
+            throw new Error('Authentication error: User not found');
+        }
         socket.user = user;
-        
+
         next();
     } catch (error) {
-        console.error('Authentication error:', error);
+        console.error('Authentication error:', error.message);
+        next(new Error('Authentication error'));
     }
 };
 

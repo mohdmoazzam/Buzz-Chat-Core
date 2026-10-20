@@ -2,13 +2,14 @@ const cookieOptions = {
     maxAge: 15 * 24 * 60 * 60 * 1000,
     sameSite: "none",
     httpOnly: true,
+    secure: true,
 };
 
 const AppConfig = {
     TOKEN_NAME: "buzzChat-token",
     ADMIN_TOKEN_NAME: "buzzChat-admin-token",
-    JWT_SECRET: "buzzChat",
-    ENV: process.env.NODE_ENV ?? "Producation",
+    JWT_SECRET: process.env.JWT_SECRET ?? "buzzChat",
+    ENV: process.env.NODE_ENV ?? "Production",
     PORT: process.env.PORT ?? 3000,
     CLOUDINARY_CLOUD_NAME: "drczl4fq5",
     CLOUDINARY_API_KEY: "846198475675984",
