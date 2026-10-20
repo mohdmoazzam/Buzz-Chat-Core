@@ -20,7 +20,7 @@ export class CreateGroupDto {
 
     /** Group picture, uploaded first via POST /assets. */
     @IsOptional()
-    @IsUUID("4", { message: "Invalid group picture" })
+    @IsUUID("7", { message: "Invalid group picture" })
     avatar_id?: string;
 }
 
