@@ -10,7 +10,7 @@ import { AVATAR_SELECT } from "../user/user.serializer";
 import { ChatAccess, groupAvatar, MEMBER_ORDER, memberIdsOf } from "./chat.access";
 import {
     GROUP_DESCRIPTION_MAX, GROUP_MAX_MEMBERS, GROUP_MIN_MEMBERS, GROUP_NAME_MAX,
-} from "./chat.constants";
+} from "../../common/constants";
 import type { AddMembersBody, CreateGroupDto, RemoveMemberBody, UpdateGroupBody } from "./group.dto";
 
 const NAME_SELECT = { first_name: true, last_name: true } as const;

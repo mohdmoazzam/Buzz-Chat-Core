@@ -7,6 +7,7 @@ import express, { type NextFunction, type Request, type Response } from "express
 import helmet from "helmet";
 import { AppModule } from "./app.module";
 import { AllExceptionsFilter } from "./common/filters/all-exceptions.filter";
+import { setupSwagger, SWAGGER_PATH } from "./common/swagger";
 import { createValidationPipe } from "./common/validation";
 import { config } from "./config/env";
 import { StorageService } from "./core/storage.service";
@@ -53,10 +54,15 @@ async function bootstrap() {
     // Finish in-flight work and close the DB pool on SIGTERM (Render sends it on deploys)
     app.enableShutdownHooks();
 
+    if (config.swaggerEnabled) setupSwagger(app);
+
     await app.listen(config.port);
 
     logger.log(`*** ENV - ${config.env} ***`);
     logger.log(`*** Server is up and running on port ${config.port} ***`);
+    if (config.swaggerEnabled) {
+        logger.log(`*** API docs: http://localhost:${config.port}/${SWAGGER_PATH} ***`);
+    }
     if (!app.get(StorageService).isConfigured) {
         logger.warn("*** Cloudinary is not configured: avatar and file uploads will fail ***");
     }

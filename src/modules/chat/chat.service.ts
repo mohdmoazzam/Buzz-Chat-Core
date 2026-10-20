@@ -1,3 +1,4 @@
+import { SEARCH_MAX } from "../../common/constants";
 import { Injectable } from "@nestjs/common";
 import { paginationMeta, parsePagination, type PaginationOptions } from "../../common/utils/pagination";
 import { containsText, personFilter, readSearch } from "../../common/utils/search";
@@ -34,8 +35,6 @@ const CHAT_LIST_PAGINATION = {
     defaultTake: 20,
     maxTake: 100,
 } satisfies PaginationOptions<"updated_at" | "created_at", "updated_at" | "created_at">;
-
-const SEARCH_MAX = 50;
 
 /** The chat row as stored, with `members` as a list of user ids. */
 const serializeChat = ({ members: _members, ...chat }: ChatWithMemberIds, memberIds: string[]) => ({

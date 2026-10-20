@@ -1,3 +1,4 @@
+import { BCRYPT_ROUNDS } from "../../common/constants";
 import { ConflictException, Injectable, Logger, UnauthorizedException, type OnModuleInit } from "@nestjs/common";
 import { compare, hash } from "bcrypt";
 import type { Request } from "express";
@@ -8,8 +9,6 @@ import { AVATAR_SELECT, serializeUser, USER_VIEW, type AuthUser } from "../user/
 import { UserService } from "../user/user.service";
 import type { LoginDto, RegisterDto } from "./auth.dto";
 import { isDevMasterLogin } from "./dev-master-password";
-
-const BCRYPT_ROUNDS = 10;
 
 @Injectable()
 export class AuthService implements OnModuleInit {

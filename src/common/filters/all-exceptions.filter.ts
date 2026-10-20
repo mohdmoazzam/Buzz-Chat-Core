@@ -3,9 +3,7 @@ import type { Request, Response } from "express";
 import multer from "multer";
 import { config } from "../../config/env";
 import { Prisma } from "../../../prisma/generated/client";
-import { UPLOAD_MAX_BYTES, UPLOAD_MAX_FILES } from "../constants";
-
-const GENERIC_MESSAGE = "Something went wrong. Please try again.";
+import { GENERIC_ERROR_MESSAGE, UPLOAD_MAX_BYTES, UPLOAD_MAX_FILES } from "../constants";
 
 const MULTER_MESSAGES: Partial<Record<multer.ErrorCode, string>> = {
     LIMIT_FILE_SIZE: `Each file must be under ${UPLOAD_MAX_BYTES / (1024 * 1024)} MB`,
@@ -35,13 +33,13 @@ const describe = (exception: unknown, req: Request): { status: number; message: 
         if (exception instanceof NotFoundException && message.startsWith(`Cannot ${req.method} `)) {
             return { status, message: `Route not found: ${req.method} ${req.originalUrl}` };
         }
-        return { status, message: status >= 500 && status !== 502 && status !== 503 ? GENERIC_MESSAGE : message };
+        return { status, message: status >= 500 && status !== 502 && status !== 503 ? GENERIC_ERROR_MESSAGE : message };
     }
     if (exception instanceof Prisma.PrismaClientKnownRequestError) {
         if (exception.code === "P2002") return { status: HttpStatus.CONFLICT, message: "This already exists" };
         if (exception.code === "P2025") return { status: HttpStatus.NOT_FOUND, message: "Not found" };
     }
-    return { status: HttpStatus.INTERNAL_SERVER_ERROR, message: GENERIC_MESSAGE };
+    return { status: HttpStatus.INTERNAL_SERVER_ERROR, message: GENERIC_ERROR_MESSAGE };
 };
 
 /**

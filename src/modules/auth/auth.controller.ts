@@ -1,4 +1,5 @@
 import { Body, Controller, Get, HttpCode, Post, Req, Res } from "@nestjs/common";
+import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import type { Request, Response } from "express";
 import { AUTH_COOKIE, cookieOptions, TRY_LATER } from "../../common/constants";
 import { RateLimit } from "../../common/guards/rate-limit.guard";
@@ -8,6 +9,7 @@ import { LoginDto, RegisterDto } from "./auth.dto";
 import { AuthService } from "./auth.service";
 
 // Shares the /user prefix with the user and friend routes to keep the existing client URLs
+@ApiTags("Auth")
 @Controller("user")
 export class AuthController {
     constructor(private readonly auth: AuthService, private readonly tokens: TokenService) {}
@@ -15,6 +17,7 @@ export class AuthController {
     // JSON body; the avatar is uploaded beforehand with POST /assets
     @Post("register")
     @RateLimit(10, 60, "Too many accounts created. Please try again later.")
+    @ApiOperation({ summary: "Create an account and start a session" })
     async register(@Body() dto: RegisterDto, @Res({ passthrough: true }) res: Response) {
         const user = await this.auth.register(dto);
         return this.startSession(res, user, "Account created");
@@ -23,6 +26,7 @@ export class AuthController {
     @Post("login")
     @HttpCode(200)
     @RateLimit(20, 15, TRY_LATER)
+    @ApiOperation({ summary: "Log in; returns access_token and sets the session cookie" })
     async login(@Body() dto: LoginDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
         const user = await this.auth.login(dto, req);
         return this.startSession(res, user, `Welcome back, ${user.first_name}`);
@@ -30,6 +34,7 @@ export class AuthController {
 
     // Logout must work even with an expired session
     @Get("logout")
+    @ApiOperation({ summary: "Clear the session cookie" })
     logout(@Res({ passthrough: true }) res: Response) {
         res.cookie(AUTH_COOKIE, "", { ...cookieOptions, maxAge: 0 });
         return { success: true, message: "Logged out successfully" };

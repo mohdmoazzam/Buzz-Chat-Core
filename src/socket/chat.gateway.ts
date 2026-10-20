@@ -5,13 +5,12 @@ import {
 } from "@nestjs/websockets";
 import type { Server, Socket } from "socket.io";
 import { config } from "../config/env";
-import { AUTH_COOKIE } from "../common/constants";
+import { AUTH_COOKIE, MESSAGE_MAX } from "../common/constants";
 import { parseBearer } from "../common/utils/bearer";
 import { PrismaService } from "../core/prisma.service";
 import { RealtimeService, userRoom } from "../core/realtime.service";
 import { TokenService } from "../core/token.service";
 import { ChatAccess, memberIdsOf } from "../modules/chat/chat.access";
-import { MESSAGE_MAX } from "../modules/message/message.constants";
 import { MessageService, type MessageSender } from "../modules/message/message.service";
 import { CHAT_JOINED, CHAT_LEAVED, NEW_MESSAGE, START_TYPING, STOP_TYPING } from "./events";
 import { PresenceService } from "./presence.service";

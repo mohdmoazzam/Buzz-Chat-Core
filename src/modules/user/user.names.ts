@@ -1,5 +1,5 @@
 import { BadRequestException } from "@nestjs/common";
-import { NAME_MAX } from "./user.constants";
+import { NAME_MAX } from "../../common/constants";
 
 export interface PersonName {
     first_name: string;

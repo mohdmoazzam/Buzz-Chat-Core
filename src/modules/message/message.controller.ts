@@ -1,28 +1,47 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, Post, Query } from "@nestjs/common";
+import { ApiBody, ApiOperation, ApiQuery, ApiTags } from "@nestjs/swagger";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
-import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
+import { AuthenticatedController } from "../../common/base.controller";
 import type { AuthUser } from "../user/user.serializer";
 import { MessageService } from "./message.service";
 
-// Chat history and attachments, under the chat routes
-@Controller("chat/message")
-@UseGuards(JwtAuthGuard)
-export class MessageController {
-    constructor(private readonly messages: MessageService) {}
+// Chat history and attachments, nested under each chat
+@ApiTags("Messages")
+@Controller("chat/:id/messages")
+export class MessageController extends AuthenticatedController {
+    constructor(private readonly messages: MessageService) {
+        super();
+    }
 
-    // JSON body: { chat_id, attachment_ids } — files are uploaded first with POST /assets
+    // JSON body: { attachment_ids } — files are uploaded first with POST /assets
     @Post()
     @HttpCode(200)
+    @ApiOperation({ summary: "Send attachments to a chat" })
+    @ApiBody({
+        schema: {
+            type: "object",
+            required: ["attachment_ids"],
+            properties: {
+                attachment_ids: {
+                    type: "array",
+                    items: { type: "string", format: "uuid" },
+                    description: "Asset ids from POST /assets",
+                },
+            },
+        },
+    })
     async sendAttachments(
         @CurrentUser() user: AuthUser,
-        @Body("chat_id") chatId: unknown,
+        @Param("id") chatId: string,
         @Body("attachment_ids") attachmentIds: unknown,
     ) {
         const message = await this.messages.sendAttachments(user, chatId, attachmentIds);
         return { success: true, message };
     }
 
-    @Get(":id")
+    @Get()
+    @ApiOperation({ summary: "Get a chat's messages (newest page first)" })
+    @ApiQuery({ name: "page", required: false, type: Number })
     async getMessages(@CurrentUser() user: AuthUser, @Param("id") id: string, @Query("page") page?: string) {
         return { success: true, ...(await this.messages.getMessages(user.id, id, page)) };
     }

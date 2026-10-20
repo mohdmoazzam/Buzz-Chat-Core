@@ -1,19 +1,24 @@
-import { Body, Controller, Get, HttpCode, Post, Res, UnauthorizedException, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Post, Res, UnauthorizedException } from "@nestjs/common";
+import { ApiBody, ApiOperation, ApiTags } from "@nestjs/swagger";
 import type { Response } from "express";
 import { config } from "../../config/env";
+import { AdminBaseController } from "../../common/base.controller";
 import { ADMIN_COOKIE, cookieOptions, TRY_LATER } from "../../common/constants";
-import { AdminGuard } from "../../common/guards/admin.guard";
 import { RateLimit } from "../../common/guards/rate-limit.guard";
 import { TokenService } from "../../core/token.service";
 import { AdminService } from "./admin.service";
 
+// Public: obtaining and clearing the admin session
+@ApiTags("Admin")
 @Controller("admin")
-export class AdminController {
+export class AdminAuthController {
     constructor(private readonly admin: AdminService, private readonly tokens: TokenService) {}
 
     @Post("verify")
     @HttpCode(200)
     @RateLimit(10, 15, TRY_LATER)
+    @ApiOperation({ summary: "Exchange the admin secret key for an admin session" })
+    @ApiBody({ schema: { type: "object", required: ["secret_key"], properties: { secret_key: { type: "string" } } } })
     verify(@Body("secret_key") secretKey: unknown, @Res({ passthrough: true }) res: Response) {
         if (!this.admin.isAdminKey(secretKey)) {
             throw new UnauthorizedException("Invalid admin key");
@@ -24,37 +29,41 @@ export class AdminController {
     }
 
     @Get("logout")
+    @ApiOperation({ summary: "Clear the admin session cookie" })
     logout(@Res({ passthrough: true }) res: Response) {
         res.cookie(ADMIN_COOKIE, "", { ...cookieOptions, maxAge: 0 });
         return { success: true, message: "Logged out successfully" };
     }
+}
+
+@ApiTags("Admin")
+@Controller("admin")
+export class AdminController extends AdminBaseController {
+    constructor(private readonly admin: AdminService) {
+        super();
+    }
 
     @Get()
-    @UseGuards(AdminGuard)
     getAdminData() {
         return { admin: true };
     }
 
     @Get("users")
-    @UseGuards(AdminGuard)
     async getAllUsers() {
         return { success: true, data: await this.admin.getAllUsers() };
     }
 
     @Get("chats")
-    @UseGuards(AdminGuard)
     async getAllChats() {
         return { success: true, data: await this.admin.getAllChats() };
     }
 
     @Get("messages")
-    @UseGuards(AdminGuard)
     async getAllMessages() {
         return { success: true, data: await this.admin.getAllMessages() };
     }
 
     @Get("stats")
-    @UseGuards(AdminGuard)
     async getDashboardStats() {
         return { success: true, data: await this.admin.getDashboardStats() };
     }

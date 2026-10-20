@@ -38,6 +38,9 @@ export const config = Object.freeze({
     adminTokenTtlSeconds: 15 * 60,      // 15 minutes
     adminSecretKey: process.env.ADMIN_SECRET_KEY ?? "",
 
+    // Swagger UI at /api/docs: on outside production, opt-in there with SWAGGER_ENABLED=true
+    swaggerEnabled: !isProduction || process.env.SWAGGER_ENABLED === "true",
+
     corsOrigins: [
         "http://localhost:5173",
         "https://buzzchatapp.vercel.app",

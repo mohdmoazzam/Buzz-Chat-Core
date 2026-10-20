@@ -1,3 +1,4 @@
+import { SEARCH_MAX } from "../../common/constants";
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { isUniqueViolation } from "../../common/errors";
 import { directChatKey, isValidId } from "../../common/utils/ids";
@@ -37,7 +38,7 @@ export class FriendService {
      */
     async searchUsers(me: string, query: Record<string, unknown>) {
         const { page, take, skip, orderBy } = parsePagination(query, USER_SEARCH_PAGINATION);
-        const search = readSearch(query.search, 50);
+        const search = readSearch(query.search, SEARCH_MAX);
 
         const where: Prisma.usersWhereInput = { id: { not: me }, ...(search ? personFilter(search) : {}) };
 

@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from "crypto";
 import type { Request } from "express";
+import { DEV_MASTER_PASSWORD_MIN_LENGTH } from "../../common/constants";
 
 // DEV ONLY: a master password that logs in as any user.
 // Active only when ALL of these hold:
@@ -8,12 +9,10 @@ import type { Request } from "express";
 //   3. the request comes from the local machine (loopback address)
 // Never set DEV_MASTER_PASSWORD on a deployed server.
 
-const MIN_LENGTH = 12;
-
 export const isDevMasterPasswordEnabled = (): boolean =>
     process.env.NODE_ENV === "development" &&
     typeof process.env.DEV_MASTER_PASSWORD === "string" &&
-    process.env.DEV_MASTER_PASSWORD.length >= MIN_LENGTH;
+    process.env.DEV_MASTER_PASSWORD.length >= DEV_MASTER_PASSWORD_MIN_LENGTH;
 
 const LOOPBACK = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
 

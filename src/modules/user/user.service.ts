@@ -4,7 +4,7 @@ import { isValidId } from "../../common/utils/ids";
 import { PrismaService } from "../../core/prisma.service";
 import type { gender, Prisma } from "../../../prisma/generated/client";
 import { AssetsService } from "../assets/assets.service";
-import { BIO_MAX, GENDERS, PHONE_REGEX, USERNAME_REGEX, USERNAME_RULE_MESSAGE } from "./user.constants";
+import { BIO_MAX, GENDERS, PHONE_REGEX, USERNAME_REGEX, USERNAME_RULE_MESSAGE } from "../../common/constants";
 import { readNameFields } from "./user.names";
 import { USER_VIEW, type AuthUser } from "./user.serializer";
 

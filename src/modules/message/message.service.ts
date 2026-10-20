@@ -1,12 +1,11 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
-import { UPLOAD_MAX_FILES } from "../../common/constants";
+import { MESSAGES_PAGE_SIZE, UPLOAD_MAX_FILES } from "../../common/constants";
 import { areValidIds, toIdList } from "../../common/utils/ids";
 import { PrismaService } from "../../core/prisma.service";
 import { RealtimeService } from "../../core/realtime.service";
 import { NEW_MESSAGE, NEW_MESSAGE_ALERT } from "../../socket/events";
 import { ASSET_SELECT, AssetsService } from "../assets/assets.service";
 import { ChatAccess, memberIdsOf } from "../chat/chat.access";
-import { MESSAGES_PAGE_SIZE } from "./message.constants";
 
 /** The sender as embedded in messages: id and name columns. */
 export type MessageSender = { id: string; first_name: string; last_name: string };

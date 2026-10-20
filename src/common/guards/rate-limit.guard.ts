@@ -1,8 +1,8 @@
 import { applyDecorators, HttpException, HttpStatus, Injectable, SetMetadata, type ExecutionContext } from "@nestjs/common";
 import { Throttle, ThrottlerGuard } from "@nestjs/throttler";
+import { RATE_LIMIT_DEFAULT_MESSAGE } from "../constants";
 
 const RATE_LIMIT_MESSAGE = "rateLimitMessage";
-const DEFAULT_MESSAGE = "You're doing that too often. Please slow down.";
 
 /** A stricter per-route limit (e.g. login brute-force protection) with its own message. */
 export const RateLimit = (limit: number, windowMinutes: number, message: string) =>
@@ -28,7 +28,7 @@ export class RateLimitGuard extends ThrottlerGuard {
     }
 
     protected override async throwThrottlingException(context: ExecutionContext): Promise<void> {
-        throw new HttpException(this.routeMessage(context) ?? DEFAULT_MESSAGE, HttpStatus.TOO_MANY_REQUESTS);
+        throw new HttpException(this.routeMessage(context) ?? RATE_LIMIT_DEFAULT_MESSAGE, HttpStatus.TOO_MANY_REQUESTS);
     }
 
     private routeMessage(context: ExecutionContext): string | undefined {
