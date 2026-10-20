@@ -172,16 +172,31 @@ const logout = TryCatch(async (req, res) => {
 });
 
 const searchUser = TryCatch(async (req, res) => {
-    const { name = "" } = req.query;
+    const query = String(req.query.name ?? "").trim().slice(0, 50);
     const myChats = await Chat.find({ groupChat: false, members: req.user });
     const allUsersFromMyChats = myChats.map((chat) => chat.members).flat();
 
-    const allUsersExceptMeAndFriends = await User.find({
-        _id: { $nin: allUsersFromMyChats },
-        name: { $regex: name, $options: "i" }
+    const filter = { _id: { $nin: [...allUsersFromMyChats, req.user] } };
+    if (query) {
+        const pattern = { $regex: escapeRegex(query), $options: "i" };
+        filter.$or = [{ name: pattern }, { username: pattern }];
+    }
+
+    const [allUsersExceptMeAndFriends, pendingRequests] = await Promise.all([
+        User.find(filter).select("name username avatar").limit(30),
+        Request.find({ $or: [{ sender: req.user }, { receiver: req.user }] }).select("sender receiver")
+    ]);
+
+    // "sent" = I already requested them, "received" = they requested me
+    const requestStatus = new Map();
+    pendingRequests.forEach(({ sender, receiver }) => {
+        if (sender.toString() === req.user.toString()) requestStatus.set(receiver.toString(), "sent");
+        else requestStatus.set(sender.toString(), "received");
     });
-    const users = allUsersExceptMeAndFriends.map(({ _id, name, avatar }) => ({
-        _id, name, avatar: avatar.url
+
+    const users = allUsersExceptMeAndFriends.map(({ _id, name, username, avatar }) => ({
+        _id, name, username, avatar: avatar.url,
+        requestStatus: requestStatus.get(_id.toString()) ?? null
     }));
     return res.status(200).json({
         success: true,
