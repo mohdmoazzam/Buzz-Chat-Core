@@ -1,9 +1,9 @@
-// Adds the authenticated user's id to Express requests (set by isAuthenticated)
+import type { AuthUser } from "../modules/user/user.serializer";
+
+// Passport types req.user as Express.User; JwtStrategy sets it to the logged-in user
 declare global {
     namespace Express {
-        interface Request {
-            user?: string;
-        }
+        interface User extends AuthUser {}
     }
 }
 

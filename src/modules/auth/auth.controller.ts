@@ -1,75 +1,44 @@
-import { compare, hash } from "bcrypt";
-import { asyncHandler } from "../../common/middlewares/asyncHandler.js";
-import { AUTH_COOKIE, cookieOptions } from "../../common/constants.js";
-import { ErrorHandler, isDuplicateKeyError } from "../../common/errors.js";
-import { deleteFiles, uploadFiles } from "../../common/utils/storage.js";
-import { sendAuthResponse } from "../../common/utils/token.js";
-import { User } from "../user/user.model.js";
-import { isUsernameTaken, usernameQuery } from "../user/user.service.js";
-import { isDevMasterLogin } from "./devMasterPassword.js";
+import { Body, Controller, Get, HttpCode, Post, Req, Res } from "@nestjs/common";
+import type { Request, Response } from "express";
+import { AUTH_COOKIE, cookieOptions, TRY_LATER } from "../../common/constants";
+import { RateLimit } from "../../common/guards/rate-limit.guard";
+import { TokenService } from "../../core/token.service";
+import type { AuthUser } from "../user/user.serializer";
+import { LoginDto, RegisterDto } from "./auth.dto";
+import { AuthService } from "./auth.service";
 
-const BCRYPT_ROUNDS = 10;
-// Compared against when the username doesn't exist, so response time doesn't reveal it
-const DUMMY_HASH = await hash("buzzchat-timing-placeholder", BCRYPT_ROUNDS);
+// Shares the /user prefix with the user and friend routes to keep the existing client URLs
+@Controller("user")
+export class AuthController {
+    constructor(private readonly auth: AuthService, private readonly tokens: TokenService) {}
 
-export const register = asyncHandler(async (req, res, next) => {
-    // Shape already validated by registerRules
-    const name = String(req.body.name).trim();
-    const username = String(req.body.username).trim();
-    const bio = String(req.body.bio).trim();
-    const password = String(req.body.password);
-
-    if (!req.file) {
-        return next(new ErrorHandler("Please upload a profile photo", 400));
-    }
-    if (await isUsernameTaken(username)) {
-        return next(new ErrorHandler("Username is not available", 409));
+    // JSON body; the avatar is uploaded beforehand with POST /assets
+    @Post("register")
+    @RateLimit(10, 60, "Too many accounts created. Please try again later.")
+    async register(@Body() dto: RegisterDto, @Res({ passthrough: true }) res: Response) {
+        const user = await this.auth.register(dto);
+        return this.startSession(res, user, "Account created");
     }
 
-    const [uploaded] = await uploadFiles([req.file]);
-    const hashedPassword = await hash(password, BCRYPT_ROUNDS);
-
-    try {
-        const user = await User.create({
-            name,
-            bio,
-            username,
-            password: hashedPassword,
-            avatar: { public_id: uploaded.public_id, url: uploaded.secureUrl },
-        });
-        sendAuthResponse(res, user, 201, "Account created");
-    } catch (error) {
-        deleteFiles([uploaded.public_id]);
-        if (isDuplicateKeyError(error)) {
-            return next(new ErrorHandler("Username is not available", 409));
-        }
-        throw error;
+    @Post("login")
+    @HttpCode(200)
+    @RateLimit(20, 15, TRY_LATER)
+    async login(@Body() dto: LoginDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
+        const user = await this.auth.login(dto, req);
+        return this.startSession(res, user, `Welcome back, ${user.first_name}`);
     }
-});
 
-export const login = asyncHandler(async (req, res, next) => {
-    const username = String(req.body.username).trim();
-    const password = String(req.body.password);
-
-    const user = username.length <= 50
-        ? await User.findOne(usernameQuery(username)).select("+password")
-        : null;
-
-    const isMasterLogin = !!user && isDevMasterLogin(req, password);
-    // Always run bcrypt so timing doesn't reveal whether the username exists
-    const passwordOk = await compare(password, user?.password ?? DUMMY_HASH);
-
-    if (!user || !(isMasterLogin || passwordOk)) {
-        return next(new ErrorHandler("Invalid username or password", 401));
+    // Logout must work even with an expired session
+    @Get("logout")
+    logout(@Res({ passthrough: true }) res: Response) {
+        res.cookie(AUTH_COOKIE, "", { ...cookieOptions, maxAge: 0 });
+        return { success: true, message: "Logged out successfully" };
     }
-    if (isMasterLogin) {
-        console.warn(`[DEV] Master password used to log in as "${user.username}"`);
-    }
-    sendAuthResponse(res, user, 200, `Welcome back, ${user.name}`);
-});
 
-export const logout = asyncHandler(async (_req, res) => {
-    return res.status(200)
-        .cookie(AUTH_COOKIE, "", { ...cookieOptions, maxAge: 0 })
-        .json({ success: true, message: "Logged out successfully" });
-});
+    /** Issues a session token (cookie + body) and returns the user. */
+    private startSession(res: Response, user: AuthUser, message: string) {
+        const token = this.tokens.signUser(user.id);
+        res.cookie(AUTH_COOKIE, token, cookieOptions);
+        return { success: true, message, access_token: token, user };
+    }
+}

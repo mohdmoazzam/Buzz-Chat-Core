@@ -30,7 +30,8 @@ export const config = Object.freeze({
     isProduction,
     port: Number(process.env.PORT) || 3000,
 
-    mongoUrl: required("MONGODB_URL"),
+    // Read by Prisma itself; checked here so a missing value fails at startup
+    databaseUrl: required("DATABASE_URL"),
 
     jwtSecret: jwtSecret(),
     tokenTtlSeconds: 15 * 24 * 60 * 60, // 15 days
@@ -39,6 +40,8 @@ export const config = Object.freeze({
 
     corsOrigins: [
         "http://localhost:5173",
+        "https://buzzchatapp.vercel.app",
+        // Old Vercel URL; remove once buzzchatapp.vercel.app is live
         "https://buzz-chat-frontend-azure.vercel.app",
         ...parseOrigins(process.env.CLIENT_URL),
     ],

@@ -1,14 +1,17 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "node16",
+    "moduleResolution": "node16",
     "lib": [
       "ES2022"
     ],
-    "rootDir": "src",
+    // src/ and the generated Prisma client (prisma/generated) compile into dist/
+    "rootDir": ".",
     "outDir": "dist",
     "strict": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,
     "esModuleInterop": true,
@@ -18,11 +21,11 @@
     "sourceMap": true
   },
   "include": [
-    "src/**/*.ts"
+    "src/**/*.ts",
+    "prisma/generated/**/*.ts"
   ],
   "exclude": [
     "node_modules",
-    "dist",
-    "src/seeders"
+    "dist"
   ]
 }

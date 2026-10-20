@@ -1,181 +1,68 @@
-import type { FilterQuery, Types } from "mongoose";
-import { currentUserId } from "../../common/errors.js";
-import { asyncHandler } from "../../common/middlewares/asyncHandler.js";
-import { getOtherMember, sameId } from "../../common/utils/ids.js";
-import { paginationMeta, parsePagination, type PaginationOptions } from "../../common/utils/pagination.js";
-import { escapeRegex } from "../../common/utils/regex.js";
-import { deleteFiles } from "../../common/utils/storage.js";
-import { REFETCH_CHATS } from "../../socket/events.js";
-import { emitToUsers } from "../../socket/index.js";
-import { Message } from "../message/message.model.js";
-import { User, type UserSummary } from "../user/user.model.js";
-import { Chat, type IChat } from "./chat.model.js";
-import { assertGroupCreator, findChatForMember, getFriendIds, groupAvatar, presentMembers } from "./chat.service.js";
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from "@nestjs/common";
+import { CurrentUser } from "../../common/decorators/current-user.decorator";
+import type { AuthUser } from "../user/user.serializer";
+import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
+import { ChatService } from "./chat.service";
+import { CreateGroupDto, type AddMembersBody, type RemoveMemberBody, type UpdateGroupBody } from "./group.dto";
+import { GroupService } from "./group.service";
 
-interface LastMessagePreview {
-    content: string;
-    attachments: { url: string }[];
-    createdAt: Date;
-    sender: { _id: Types.ObjectId | null; name: string };
+@Controller("chat")
+@UseGuards(JwtAuthGuard)
+export class ChatController {
+    constructor(private readonly chats: ChatService, private readonly groups: GroupService) {}
+
+    @Get("my")
+    async getMyChats(@CurrentUser() user: AuthUser, @Query() query: Record<string, unknown>) {
+        return { success: true, ...(await this.chats.getMyChats(user.id, query)) };
+    }
+
+    // Groups
+
+    // JSON body; the picture is uploaded first with POST /assets and sent as avatar_id
+    @Post("new")
+    async createGroup(@CurrentUser() user: AuthUser, @Body() dto: CreateGroupDto) {
+        const chatId = await this.groups.createGroup(user.id, dto);
+        return { success: true, message: "Group created", chat_id: chatId };
+    }
+
+    @Get("my/groups")
+    async getMyGroups(@CurrentUser() user: AuthUser) {
+        return { success: true, groups: await this.groups.getMyGroups(user.id) };
+    }
+
+    @Put("addMembers")
+    async addMembers(@CurrentUser() user: AuthUser, @Body() body: AddMembersBody) {
+        await this.groups.addMembers(user.id, body);
+        return { success: true, message: "Members added successfully" };
+    }
+
+    @Put("removeMember")
+    async removeMember(@CurrentUser() user: AuthUser, @Body() body: RemoveMemberBody) {
+        await this.groups.removeMember(user.id, body);
+        return { success: true, message: "Member removed successfully" };
+    }
+
+    @Delete("leave/:id")
+    async leaveGroup(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+        await this.groups.leaveGroup(user.id, id);
+        return { success: true, message: "You left the group" };
+    }
+
+    // Must stay last: "/:id" would otherwise match the paths above
+
+    @Get(":id")
+    async getChatDetails(@CurrentUser() user: AuthUser, @Param("id") id: string, @Query("populate") populate?: string) {
+        return { success: true, chat: await this.chats.getChatDetails(user.id, id, populate === "true") };
+    }
+
+    @Put(":id")
+    async updateGroup(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() body: UpdateGroupBody) {
+        const chat = await this.groups.updateGroup(user.id, id, body);
+        return { success: true, message: "Group updated", chat };
+    }
+
+    @Delete(":id")
+    async deleteChat(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+        return { success: true, message: await this.chats.deleteChat(user.id, id) };
+    }
 }
-
-/** Latest message per chat in one aggregation (uses the {chat, createdAt} index). */
-const getLastMessages = async (chatIds: Types.ObjectId[]): Promise<Map<string, LastMessagePreview>> => {
-    if (!chatIds.length) return new Map();
-    const rows = await Message.aggregate<{ _id: Types.ObjectId } & LastMessagePreview>([
-        { $match: { chat: { $in: chatIds } } },
-        { $sort: { chat: 1, createdAt: -1 } },
-        {
-            $group: {
-                _id: "$chat",
-                content: { $first: "$content" },
-                attachments: { $first: "$attachments.url" },
-                createdAt: { $first: "$createdAt" },
-                sender: { $first: "$sender" },
-            },
-        },
-        { $lookup: { from: "users", localField: "sender", foreignField: "_id", as: "senderDoc", pipeline: [{ $project: { name: 1 } }] } },
-        {
-            $project: {
-                content: { $ifNull: ["$content", ""] },
-                // Only the URLs are needed to describe the attachment type
-                attachments: { $map: { input: { $ifNull: ["$attachments", []] }, as: "url", in: { url: "$$url" } } },
-                createdAt: 1,
-                sender: {
-                    _id: { $ifNull: [{ $first: "$senderDoc._id" }, null] },
-                    name: { $ifNull: [{ $first: "$senderDoc.name" }, "Deleted user"] },
-                },
-            },
-        },
-    ]);
-    return new Map(rows.map(({ _id, ...preview }) => [String(_id), preview]));
-};
-
-const CHAT_LIST_PAGINATION = {
-    allowedOrderBy: ["updatedAt", "createdAt"] as const,
-    defaultOrderBy: "updatedAt",
-    defaultOrder: "desc",
-    defaultTake: 20,
-    maxTake: 100,
-} satisfies PaginationOptions<"updatedAt" | "createdAt">;
-
-const SEARCH_MAX = 50;
-
-/**
- * Filter for the user's chats, optionally narrowed by a search term:
- * groups match on their name, 1:1 chats match on the other person's name or username.
- */
-const buildChatListFilter = async (me: string, rawSearch: unknown): Promise<FilterQuery<IChat>> => {
-    const search = typeof rawSearch === "string" ? rawSearch.trim().slice(0, SEARCH_MAX) : "";
-    if (!search) return { members: me };
-
-    const pattern = { $regex: escapeRegex(search), $options: "i" };
-    // Only the user's own 1:1 contacts can match, so we never scan the whole users table.
-    // (The current user is not in this set, so searching your own name doesn't match every chat.)
-    const contactIds = [...(await getFriendIds(me))];
-    const matchingUsers = contactIds.length
-        ? await User.find({ _id: { $in: contactIds }, $or: [{ name: pattern }, { username: pattern }] })
-            .select("_id")
-            .lean()
-        : [];
-
-    return {
-        members: me,
-        $or: [
-            { groupChat: true, name: pattern },
-            { groupChat: false, members: { $in: matchingUsers.map((u) => u._id) } },
-        ],
-    };
-};
-
-/**
- * Chats the user is in, with a last-message preview.
- * Query: ?page=1&take=20&orderBy=updatedAt&order=desc&search=text (updatedAt = latest activity).
- */
-export const getMyChats = asyncHandler(async (req, res) => {
-    const me = currentUserId(req);
-    const { page, take, skip, sort } = parsePagination(req.query, CHAT_LIST_PAGINATION);
-    const filter = await buildChatListFilter(me, req.query.search);
-
-    const [chats, total] = await Promise.all([
-        Chat.find(filter)
-            .sort(sort)
-            .skip(skip)
-            .limit(take)
-            .populate<{ members: (UserSummary | null)[] }>("members", "name avatar")
-            .lean(),
-        Chat.countDocuments(filter),
-    ]);
-
-    const lastMessages = await getLastMessages(chats.map((chat) => chat._id));
-
-    const transformedChats = chats.flatMap((chat) => {
-        const members = presentMembers(chat.members);
-        const otherMember = getOtherMember(members, me);
-        // A 1:1 chat whose other member was deleted has nothing to show
-        if (!chat.groupChat && !otherMember) return [];
-        return [{
-            _id: chat._id,
-            groupChat: chat.groupChat,
-            avatar: chat.groupChat ? groupAvatar(chat, members) : [otherMember?.avatar?.url],
-            name: chat.groupChat ? chat.name : otherMember?.name,
-            members: members.filter((m) => !sameId(m._id, me)).map((m) => m._id),
-            lastMessage: lastMessages.get(String(chat._id)) ?? null,
-        }];
-    });
-
-    return res.status(200).json({
-        success: true,
-        chats: transformedChats,
-        pagination: paginationMeta(page, take, total),
-    });
-});
-
-export const getChatDetails = asyncHandler(async (req, res) => {
-    const chat = await findChatForMember(req.params.id, currentUserId(req));
-
-    if (req.query.populate !== "true") {
-        return res.status(200).json({ success: true, chat });
-    }
-
-    const populated = await chat.populate<{ members: (UserSummary | null)[] }>("members", "name username avatar");
-    // toObject() drops the populated typing, so restore it explicitly
-    const result = populated.toObject() as unknown as Omit<IChat, "members"> & { members: (UserSummary | null)[] };
-    return res.status(200).json({
-        success: true,
-        chat: {
-            ...result,
-            members: presentMembers(result.members).map((member) => ({
-                _id: member._id,
-                name: member.name,
-                username: member.username,
-                avatar: member.avatar?.url,
-            })),
-        },
-    });
-});
-
-/** Deletes a 1:1 chat (any member) or a group (admin only), with its messages and files. */
-export const deleteChat = asyncHandler(async (req, res) => {
-    const me = currentUserId(req);
-    const chat = await findChatForMember(req.params.id, me);
-    if (chat.groupChat) {
-        assertGroupCreator(chat, me, "delete the group");
-    }
-
-    const members = chat.members.map(String);
-    const messagesWithAttachments = await Message.find({ chat: chat._id, "attachments.0": { $exists: true } })
-        .select("attachments.public_id")
-        .lean();
-    const publicIds = [
-        chat.avatar?.public_id,
-        ...messagesWithAttachments.flatMap(({ attachments }) => attachments.map((a) => a.public_id)),
-    ];
-
-    await Promise.all([chat.deleteOne(), Message.deleteMany({ chat: chat._id })]);
-    // File cleanup can be slow; don't make the user wait for it
-    deleteFiles(publicIds);
-
-    emitToUsers(members, REFETCH_CHATS);
-    return res.status(200).json({ success: true, message: chat.groupChat ? "Group deleted" : "Chat deleted" });
-});

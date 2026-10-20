@@ -1,5 +1,5 @@
 import type { CookieOptions } from "express";
-import { config } from "../config/env.js";
+import { config } from "../config/env";
 
 // Cross-cutting constants. Feature-specific limits live in each module.
 
@@ -15,3 +15,5 @@ export const cookieOptions: CookieOptions = {
 
 export const UPLOAD_MAX_FILES = 5;
 export const UPLOAD_MAX_BYTES = 5 * 1024 * 1024;
+
+export const TRY_LATER = "Too many attempts. Please wait a few minutes and try again.";
