@@ -2,6 +2,7 @@ import type { Types } from "mongoose";
 import { currentUserId } from "../../common/errors.js";
 import { asyncHandler } from "../../common/middlewares/asyncHandler.js";
 import { getOtherMember, sameId } from "../../common/utils/ids.js";
+import { paginationMeta, parsePagination, type PaginationOptions } from "../../common/utils/pagination.js";
 import { deleteFiles } from "../../common/utils/storage.js";
 import { REFETCH_CHATS } from "../../socket/events.js";
 import { emitToUsers } from "../../socket/index.js";
@@ -49,13 +50,31 @@ const getLastMessages = async (chatIds: Types.ObjectId[]): Promise<Map<string, L
     return new Map(rows.map(({ _id, ...preview }) => [String(_id), preview]));
 };
 
-/** All chats the user is in, most recently active first, with a last-message preview. */
+const CHAT_LIST_PAGINATION = {
+    allowedOrderBy: ["updatedAt", "createdAt"] as const,
+    defaultOrderBy: "updatedAt",
+    defaultOrder: "desc",
+    defaultTake: 20,
+    maxTake: 100,
+} satisfies PaginationOptions<"updatedAt" | "createdAt">;
+
+/**
+ * Chats the user is in, with a last-message preview.
+ * Query: ?page=1&take=20&orderBy=updatedAt&order=desc (updatedAt = latest activity).
+ */
 export const getMyChats = asyncHandler(async (req, res) => {
     const me = currentUserId(req);
-    const chats = await Chat.find({ members: me })
-        .sort({ updatedAt: -1 })
-        .populate<{ members: (UserSummary | null)[] }>("members", "name avatar")
-        .lean();
+    const { page, take, skip, sort } = parsePagination(req.query, CHAT_LIST_PAGINATION);
+
+    const [chats, total] = await Promise.all([
+        Chat.find({ members: me })
+            .sort(sort)
+            .skip(skip)
+            .limit(take)
+            .populate<{ members: (UserSummary | null)[] }>("members", "name avatar")
+            .lean(),
+        Chat.countDocuments({ members: me }),
+    ]);
 
     const lastMessages = await getLastMessages(chats.map((chat) => chat._id));
 
@@ -74,7 +93,11 @@ export const getMyChats = asyncHandler(async (req, res) => {
         }];
     });
 
-    return res.status(200).json({ success: true, chats: transformedChats });
+    return res.status(200).json({
+        success: true,
+        chats: transformedChats,
+        pagination: paginationMeta(page, take, total),
+    });
 });
 
 export const getChatDetails = asyncHandler(async (req, res) => {
