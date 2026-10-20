@@ -1,13 +1,14 @@
-import type { Types } from "mongoose";
+import type { FilterQuery, Types } from "mongoose";
 import { currentUserId } from "../../common/errors.js";
 import { asyncHandler } from "../../common/middlewares/asyncHandler.js";
 import { getOtherMember, sameId } from "../../common/utils/ids.js";
 import { paginationMeta, parsePagination, type PaginationOptions } from "../../common/utils/pagination.js";
+import { escapeRegex } from "../../common/utils/regex.js";
 import { deleteFiles } from "../../common/utils/storage.js";
 import { REFETCH_CHATS } from "../../socket/events.js";
 import { emitToUsers } from "../../socket/index.js";
 import { Message } from "../message/message.model.js";
-import type { UserSummary } from "../user/user.model.js";
+import { User, type UserSummary } from "../user/user.model.js";
 import { Chat, type IChat } from "./chat.model.js";
 import { assertGroupCreator, findChatForMember, groupAvatar, presentMembers } from "./chat.service.js";
 
@@ -58,22 +59,49 @@ const CHAT_LIST_PAGINATION = {
     maxTake: 100,
 } satisfies PaginationOptions<"updatedAt" | "createdAt">;
 
+const SEARCH_MAX = 50;
+
+/**
+ * Filter for the user's chats, optionally narrowed by a search term:
+ * groups match on their name, 1:1 chats match on the other person's name or username.
+ */
+const buildChatListFilter = async (me: string, rawSearch: unknown): Promise<FilterQuery<IChat>> => {
+    const search = typeof rawSearch === "string" ? rawSearch.trim().slice(0, SEARCH_MAX) : "";
+    if (!search) return { members: me };
+
+    const pattern = { $regex: escapeRegex(search), $options: "i" };
+    // Exclude the current user so searching your own name doesn't match every chat
+    const matchingUsers = await User.find({ _id: { $ne: me }, $or: [{ name: pattern }, { username: pattern }] })
+        .select("_id")
+        .limit(500)
+        .lean();
+
+    return {
+        members: me,
+        $or: [
+            { groupChat: true, name: pattern },
+            { groupChat: false, members: { $in: matchingUsers.map((u) => u._id) } },
+        ],
+    };
+};
+
 /**
  * Chats the user is in, with a last-message preview.
- * Query: ?page=1&take=20&orderBy=updatedAt&order=desc (updatedAt = latest activity).
+ * Query: ?page=1&take=20&orderBy=updatedAt&order=desc&search=text (updatedAt = latest activity).
  */
 export const getMyChats = asyncHandler(async (req, res) => {
     const me = currentUserId(req);
     const { page, take, skip, sort } = parsePagination(req.query, CHAT_LIST_PAGINATION);
+    const filter = await buildChatListFilter(me, req.query.search);
 
     const [chats, total] = await Promise.all([
-        Chat.find({ members: me })
+        Chat.find(filter)
             .sort(sort)
             .skip(skip)
             .limit(take)
             .populate<{ members: (UserSummary | null)[] }>("members", "name avatar")
             .lean(),
-        Chat.countDocuments({ members: me }),
+        Chat.countDocuments(filter),
     ]);
 
     const lastMessages = await getLastMessages(chats.map((chat) => chat._id));
