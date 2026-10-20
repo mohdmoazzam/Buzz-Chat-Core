@@ -40,6 +40,8 @@ export const config = Object.freeze({
 
     corsOrigins: [
         "http://localhost:5173",
+        "https://buzzchatapp.vercel.app",
+        // Old Vercel URL; remove once buzzchatapp.vercel.app is live
         "https://buzz-chat-frontend-azure.vercel.app",
         ...parseOrigins(process.env.CLIENT_URL),
     ],
