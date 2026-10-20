@@ -3,6 +3,8 @@
 --   2. npm run db:apply   -- runs this file against DIRECT_URL (fresh database)
 --   3. npm run db:pull    -- introspects into prisma/schema.prisma and regenerates the client
 
+-- Ids are UUID v7 (time-ordered; uuidv7() is built into Postgres 18+)
+
 -- Case-insensitive usernames and emails ("John" and "john" are the same)
 CREATE EXTENSION IF NOT EXISTS citext;
 
@@ -20,7 +22,7 @@ $$;
 
 -- Every uploaded file (POST /api/v1/assets). Other tables point here by id.
 CREATE TABLE assets (
-    id            uuid           PRIMARY KEY DEFAULT gen_random_uuid(),
+    id            uuid           PRIMARY KEY DEFAULT uuidv7(),
     -- Cloudinary's id, used to delete the file
     public_id     text           NOT NULL UNIQUE,
     url           text           NOT NULL,
@@ -35,7 +37,7 @@ CREATE TABLE assets (
 );
 
 CREATE TABLE users (
-    id               uuid           PRIMARY KEY DEFAULT gen_random_uuid(),
+    id               uuid           PRIMARY KEY DEFAULT uuidv7(),
     email            citext         NOT NULL UNIQUE,
     first_name       text           NOT NULL,
     last_name        text           NOT NULL DEFAULT '',
@@ -56,7 +58,7 @@ ALTER TABLE assets
 CREATE INDEX assets_uploaded_by_idx ON assets (uploaded_by);
 
 CREATE TABLE chats (
-    id               uuid           PRIMARY KEY DEFAULT gen_random_uuid(),
+    id               uuid           PRIMARY KEY DEFAULT uuidv7(),
     name             text           NOT NULL,
     description      text           NOT NULL DEFAULT '',
     -- Group picture (1:1 chats show the other person's photo)
@@ -81,7 +83,7 @@ CREATE TABLE chat_members (
 CREATE INDEX chat_members_user_id_idx ON chat_members (user_id);
 
 CREATE TABLE messages (
-    id          uuid           PRIMARY KEY DEFAULT gen_random_uuid(),
+    id          uuid           PRIMARY KEY DEFAULT uuidv7(),
     chat_id     uuid           NOT NULL REFERENCES chats (id) ON DELETE CASCADE,
     sender_id   uuid           NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     content     text           NOT NULL DEFAULT '',
@@ -103,7 +105,7 @@ CREATE TABLE message_attachments (
 CREATE INDEX message_attachments_asset_id_idx ON message_attachments (asset_id);
 
 CREATE TABLE friend_requests (
-    id          uuid           PRIMARY KEY DEFAULT gen_random_uuid(),
+    id          uuid           PRIMARY KEY DEFAULT uuidv7(),
     sender_id   uuid           NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     receiver_id uuid           NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     status      request_status NOT NULL DEFAULT 'pending',

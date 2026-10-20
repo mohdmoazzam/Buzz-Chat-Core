@@ -36,6 +36,12 @@ async function bootstrap() {
     app.use(express.json({ limit: "100kb" }));
     app.use(express.urlencoded({ extended: false, limit: "100kb" }));
     app.use(bodyParserErrors);
+    // Express 5 leaves req.body undefined when no parser ran (e.g. a multipart request from an
+    // old client); use {} so handlers return validation errors instead of crashing
+    app.use((req: Request, _res: Response, next: NextFunction) => {
+        req.body ??= {};
+        next();
+    });
     app.use(cookieParser());
 
     // Every API route lives under /api/v1; "/" and "/health" stay at the root for uptime checks

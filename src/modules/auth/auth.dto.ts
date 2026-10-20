@@ -44,7 +44,7 @@ export class RegisterDto {
     password!: string;
 
     /** Profile photo, uploaded first via POST /assets. */
-    @IsUUID("4", { message: "Please add a profile photo" })
+    @IsUUID("7", { message: "Please add a profile photo" })
     avatar_id!: string;
 }
 

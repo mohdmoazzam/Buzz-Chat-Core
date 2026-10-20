@@ -11,7 +11,7 @@ datasource db {
 }
 
 model users {
-  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                String            @id @default(dbgenerated("uuidv7()")) @db.Uuid
   email             String            @unique @db.Citext
   first_name        String
   last_name         String            @default("")
@@ -33,7 +33,7 @@ model users {
 }
 
 model chats {
-  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id          String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
   name        String
   description String         @default("")
   avatar_id   String?        @db.Uuid
@@ -60,7 +60,7 @@ model chat_members {
 }
 
 model messages {
-  id          String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id          String                @id @default(dbgenerated("uuidv7()")) @db.Uuid
   chat_id     String                @db.Uuid
   sender_id   String                @db.Uuid
   content     String                @default("")
@@ -75,7 +75,7 @@ model messages {
 }
 
 model friend_requests {
-  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id          String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
   sender_id   String         @db.Uuid
   receiver_id String         @db.Uuid
   status      request_status @default(pending)
@@ -89,7 +89,7 @@ model friend_requests {
 }
 
 model assets {
-  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                  String                @id @default(dbgenerated("uuidv7()")) @db.Uuid
   public_id           String                @unique
   url                 String
   resource_type       String
