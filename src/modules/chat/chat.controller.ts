@@ -10,7 +10,7 @@ import { emitToUsers } from "../../socket/index.js";
 import { Message } from "../message/message.model.js";
 import { User, type UserSummary } from "../user/user.model.js";
 import { Chat, type IChat } from "./chat.model.js";
-import { assertGroupCreator, findChatForMember, groupAvatar, presentMembers } from "./chat.service.js";
+import { assertGroupCreator, findChatForMember, getFriendIds, groupAvatar, presentMembers } from "./chat.service.js";
 
 interface LastMessagePreview {
     content: string;
@@ -70,11 +70,14 @@ const buildChatListFilter = async (me: string, rawSearch: unknown): Promise<Filt
     if (!search) return { members: me };
 
     const pattern = { $regex: escapeRegex(search), $options: "i" };
-    // Exclude the current user so searching your own name doesn't match every chat
-    const matchingUsers = await User.find({ _id: { $ne: me }, $or: [{ name: pattern }, { username: pattern }] })
-        .select("_id")
-        .limit(500)
-        .lean();
+    // Only the user's own 1:1 contacts can match, so we never scan the whole users table.
+    // (The current user is not in this set, so searching your own name doesn't match every chat.)
+    const contactIds = [...(await getFriendIds(me))];
+    const matchingUsers = contactIds.length
+        ? await User.find({ _id: { $in: contactIds }, $or: [{ name: pattern }, { username: pattern }] })
+            .select("_id")
+            .lean()
+        : [];
 
     return {
         members: me,

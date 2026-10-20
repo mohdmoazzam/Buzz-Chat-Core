@@ -2,6 +2,7 @@ import type { FilterQuery } from "mongoose";
 import { currentUserId, ErrorHandler, isDuplicateKeyError } from "../../common/errors.js";
 import { asyncHandler } from "../../common/middlewares/asyncHandler.js";
 import { getOtherMember, isValidObjectId, sameId } from "../../common/utils/ids.js";
+import { paginationMeta, parsePagination, type PaginationOptions } from "../../common/utils/pagination.js";
 import { escapeRegex } from "../../common/utils/regex.js";
 import { NEW_REQUEST, REFETCH_CHATS } from "../../socket/events.js";
 import { emitToUsers } from "../../socket/index.js";
@@ -10,22 +11,46 @@ import { getFriendIds, presentMembers } from "../chat/chat.service.js";
 import { User, type IUser, type UserSummary } from "../user/user.model.js";
 import { Request } from "./request.model.js";
 
-/** People the user isn't friends with yet, with any pending request state. */
+const USER_SEARCH_PAGINATION = {
+    allowedOrderBy: ["name", "username", "createdAt"] as const,
+    defaultOrderBy: "name",
+    defaultOrder: "asc",
+    defaultTake: 20,
+    maxTake: 50,
+} satisfies PaginationOptions<"name" | "username" | "createdAt">;
+
+/**
+ * People the user isn't friends with yet, with any pending request state.
+ * Query: ?search=text&page=1&take=20&orderBy=name&order=asc  (legacy ?name= also accepted)
+ */
 export const searchUsers = asyncHandler(async (req, res) => {
     const me = currentUserId(req);
-    const query = String(req.query.name ?? "").trim().slice(0, 50);
-    const friendIds = await getFriendIds(me);
+    const { page, take, skip, sort } = parsePagination(req.query, USER_SEARCH_PAGINATION);
+    const rawSearch = req.query.search ?? req.query.name;
+    const search = typeof rawSearch === "string" ? rawSearch.trim().slice(0, 50) : "";
 
+    const friendIds = await getFriendIds(me);
     const filter: FilterQuery<IUser> = { _id: { $nin: [...friendIds, me] } };
-    if (query) {
-        const pattern = { $regex: escapeRegex(query), $options: "i" };
+    if (search) {
+        const pattern = { $regex: escapeRegex(search), $options: "i" };
         filter.$or = [{ name: pattern }, { username: pattern }];
     }
 
-    const [users, pendingRequests] = await Promise.all([
-        User.find(filter).select("name username avatar").sort({ name: 1 }).limit(30).lean(),
-        Request.find({ $or: [{ sender: me }, { receiver: me }] }).select("sender receiver").lean(),
+    const [users, total] = await Promise.all([
+        User.find(filter).select("name username avatar").sort(sort).skip(skip).limit(take).lean(),
+        User.countDocuments(filter),
     ]);
+
+    // Request state only for the people on this page, not every request the user has
+    const pageIds = users.map((u) => u._id);
+    const pendingRequests = pageIds.length
+        ? await Request.find({
+            $or: [
+                { sender: me, receiver: { $in: pageIds } },
+                { receiver: me, sender: { $in: pageIds } },
+            ],
+        }).select("sender receiver").lean()
+        : [];
 
     // "sent" = I already requested them, "received" = they requested me
     const requestStatus = new Map<string, "sent" | "received">();
@@ -43,6 +68,7 @@ export const searchUsers = asyncHandler(async (req, res) => {
             avatar: avatar?.url,
             requestStatus: requestStatus.get(String(_id)) ?? null,
         })),
+        pagination: paginationMeta(page, take, total),
     });
 });
 
