@@ -17,7 +17,14 @@ import userRoutes from "./routes/user.routes.js";
 import { connectToDb } from "./utils/features.js";
 import { getSockets } from "./utils/helper.js";
 
-const allowedOrigins = ['http://localhost:5173', process.env.CLIENT_URL].filter(Boolean);
+// CLIENT_URL may hold several origins separated by commas; trailing slashes are ignored
+const allowedOrigins = [
+    'http://localhost:5173',
+    'https://buzz-chat-frontend-azure.vercel.app',
+    ...(process.env.CLIENT_URL ?? "").split(","),
+]
+    .map((origin) => origin.trim().replace(/\/+$/, ""))
+    .filter(Boolean);
 
 const userSocketIds = new Map();
 const onlineUsers = new Set();
