@@ -1,3 +1,4 @@
+import type { Types } from "mongoose";
 import { currentUserId } from "../../common/errors.js";
 import { asyncHandler } from "../../common/middlewares/asyncHandler.js";
 import { getOtherMember, sameId } from "../../common/utils/ids.js";
@@ -9,13 +10,54 @@ import type { UserSummary } from "../user/user.model.js";
 import { Chat, type IChat } from "./chat.model.js";
 import { assertGroupCreator, findChatForMember, groupAvatar, presentMembers } from "./chat.service.js";
 
-/** All chats the user is in, most recently active first. */
+interface LastMessagePreview {
+    content: string;
+    attachments: { url: string }[];
+    createdAt: Date;
+    sender: { _id: Types.ObjectId | null; name: string };
+}
+
+/** Latest message per chat in one aggregation (uses the {chat, createdAt} index). */
+const getLastMessages = async (chatIds: Types.ObjectId[]): Promise<Map<string, LastMessagePreview>> => {
+    if (!chatIds.length) return new Map();
+    const rows = await Message.aggregate<{ _id: Types.ObjectId } & LastMessagePreview>([
+        { $match: { chat: { $in: chatIds } } },
+        { $sort: { chat: 1, createdAt: -1 } },
+        {
+            $group: {
+                _id: "$chat",
+                content: { $first: "$content" },
+                attachments: { $first: "$attachments.url" },
+                createdAt: { $first: "$createdAt" },
+                sender: { $first: "$sender" },
+            },
+        },
+        { $lookup: { from: "users", localField: "sender", foreignField: "_id", as: "senderDoc", pipeline: [{ $project: { name: 1 } }] } },
+        {
+            $project: {
+                content: { $ifNull: ["$content", ""] },
+                // Only the URLs are needed to describe the attachment type
+                attachments: { $map: { input: { $ifNull: ["$attachments", []] }, as: "url", in: { url: "$$url" } } },
+                createdAt: 1,
+                sender: {
+                    _id: { $ifNull: [{ $first: "$senderDoc._id" }, null] },
+                    name: { $ifNull: [{ $first: "$senderDoc.name" }, "Deleted user"] },
+                },
+            },
+        },
+    ]);
+    return new Map(rows.map(({ _id, ...preview }) => [String(_id), preview]));
+};
+
+/** All chats the user is in, most recently active first, with a last-message preview. */
 export const getMyChats = asyncHandler(async (req, res) => {
     const me = currentUserId(req);
     const chats = await Chat.find({ members: me })
         .sort({ updatedAt: -1 })
         .populate<{ members: (UserSummary | null)[] }>("members", "name avatar")
         .lean();
+
+    const lastMessages = await getLastMessages(chats.map((chat) => chat._id));
 
     const transformedChats = chats.flatMap((chat) => {
         const members = presentMembers(chat.members);
@@ -28,6 +70,7 @@ export const getMyChats = asyncHandler(async (req, res) => {
             avatar: chat.groupChat ? groupAvatar(chat, members) : [otherMember?.avatar?.url],
             name: chat.groupChat ? chat.name : otherMember?.name,
             members: members.filter((m) => !sameId(m._id, me)).map((m) => m._id),
+            lastMessage: lastMessages.get(String(chat._id)) ?? null,
         }];
     });
 
