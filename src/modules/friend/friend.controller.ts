@@ -7,7 +7,7 @@ import { escapeRegex } from "../../common/utils/regex.js";
 import { NEW_REQUEST, REFETCH_CHATS } from "../../socket/events.js";
 import { emitToUsers } from "../../socket/index.js";
 import { Chat } from "../chat/chat.model.js";
-import { getFriendIds, presentMembers } from "../chat/chat.service.js";
+import { presentMembers } from "../chat/chat.service.js";
 import { User, type IUser, type UserSummary } from "../user/user.model.js";
 import { Request } from "./request.model.js";
 
@@ -19,8 +19,11 @@ const USER_SEARCH_PAGINATION = {
     maxTake: 50,
 } satisfies PaginationOptions<"name" | "username" | "createdAt">;
 
+type Relationship = "friend" | "sent" | "received";
+
 /**
- * People the user isn't friends with yet, with any pending request state.
+ * People search (everyone except the current user), with how each person relates to them:
+ * "friend" (plus their chatId), "sent" / "received" for pending requests, or null.
  * Query: ?search=text&page=1&take=20&orderBy=name&order=asc  (legacy ?name= also accepted)
  */
 export const searchUsers = asyncHandler(async (req, res) => {
@@ -29,8 +32,7 @@ export const searchUsers = asyncHandler(async (req, res) => {
     const rawSearch = req.query.search ?? req.query.name;
     const search = typeof rawSearch === "string" ? rawSearch.trim().slice(0, 50) : "";
 
-    const friendIds = await getFriendIds(me);
-    const filter: FilterQuery<IUser> = { _id: { $nin: [...friendIds, me] } };
+    const filter: FilterQuery<IUser> = { _id: { $ne: me } };
     if (search) {
         const pattern = { $regex: escapeRegex(search), $options: "i" };
         filter.$or = [{ name: pattern }, { username: pattern }];
@@ -41,22 +43,33 @@ export const searchUsers = asyncHandler(async (req, res) => {
         User.countDocuments(filter),
     ]);
 
-    // Request state only for the people on this page, not every request the user has
+    // Relationship lookups only for the people on this page
     const pageIds = users.map((u) => u._id);
-    const pendingRequests = pageIds.length
-        ? await Request.find({
-            $or: [
-                { sender: me, receiver: { $in: pageIds } },
-                { receiver: me, sender: { $in: pageIds } },
-            ],
-        }).select("sender receiver").lean()
-        : [];
+    const [pendingRequests, friendChats] = pageIds.length
+        ? await Promise.all([
+            Request.find({
+                $or: [
+                    { sender: me, receiver: { $in: pageIds } },
+                    { receiver: me, sender: { $in: pageIds } },
+                ],
+            }).select("sender receiver").lean(),
+            Chat.find({ groupChat: false, members: { $all: [me], $in: pageIds } }).select("members").lean(),
+        ])
+        : [[], []];
 
+    const relationship = new Map<string, Relationship>();
     // "sent" = I already requested them, "received" = they requested me
-    const requestStatus = new Map<string, "sent" | "received">();
     pendingRequests.forEach(({ sender, receiver }) => {
-        if (sameId(sender, me)) requestStatus.set(String(receiver), "sent");
-        else requestStatus.set(String(sender), "received");
+        if (sameId(sender, me)) relationship.set(String(receiver), "sent");
+        else relationship.set(String(sender), "received");
+    });
+    // An existing 1:1 chat means they're already friends (takes precedence)
+    const chatIdByFriend = new Map<string, string>();
+    friendChats.forEach(({ _id, members }) => {
+        const other = members.find((m) => !sameId(m, me));
+        if (!other) return;
+        relationship.set(String(other), "friend");
+        chatIdByFriend.set(String(other), String(_id));
     });
 
     return res.status(200).json({
@@ -66,7 +79,8 @@ export const searchUsers = asyncHandler(async (req, res) => {
             name,
             username,
             avatar: avatar?.url,
-            requestStatus: requestStatus.get(String(_id)) ?? null,
+            requestStatus: relationship.get(String(_id)) ?? null,
+            chatId: chatIdByFriend.get(String(_id)) ?? null,
         })),
         pagination: paginationMeta(page, take, total),
     });
