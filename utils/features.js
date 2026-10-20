@@ -1,3 +1,4 @@
+import { v2 as cloudinary } from "cloudinary";
 import { connect } from "mongoose";
 import dotenv from "dotenv";
 import jwt from "jsonwebtoken";
@@ -35,6 +36,12 @@ export function emitEvent(req, event, users, data) {
     io.to(userSockets).emit(event, data);
 };
 
-export async function deleteFilesFromCloudinary(public_ids) {
-    
+export async function deleteFilesFromCloudinary(public_ids = []) {
+    const ids = public_ids.filter(Boolean);
+    if (ids.length === 0) return;
+    try {
+        await cloudinary.api.delete_resources(ids);
+    } catch (error) {
+        console.error("Failed to delete files from Cloudinary:", error?.message ?? error);
+    }
 };

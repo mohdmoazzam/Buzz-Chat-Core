@@ -1,5 +1,5 @@
 import express from "express";
-import { acceptFriendRequest, getMyFriends, getMyNotifications, getUserProfile, login, logout, registerUser, searchUser, sendFriendRequest } from "../controllers/user.controller.js";
+import { acceptFriendRequest, getMyFriends, getMyNotifications, getUserProfile, login, logout, registerUser, searchUser, sendFriendRequest, updateProfile, checkUsername } from "../controllers/user.controller.js";
 import { isAuthenticated } from "../middlewares/auth.js";
 import { singleAvatar } from "../middlewares/multer.js";
 import { loginvalidator, registervalidator, validateHandler } from "../utils/validators.js";
@@ -12,6 +12,10 @@ app.post("/login", loginvalidator(), validateHandler, login);
 app.use(isAuthenticated);
 
 app.get("/me", getUserProfile);
+
+app.put("/me", singleAvatar, updateProfile);
+
+app.get("/check-username", checkUsername);
 
 app.get("/logout", logout);
 

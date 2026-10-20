@@ -1,11 +1,11 @@
 import { compare, hash } from "bcrypt";
-import { cookieOptions } from "../constants/constants.js";
+import { cookieOptions, GENDERS, PHONE_REGEX, USERNAME_REGEX, USERNAME_RULE_MESSAGE } from "../constants/constants.js";
 import { NEW_REQUEST, REFETCH_CHATS } from "../constants/events.js";
 import { TryCatch } from "../middlewares/error.js";
 import { Chat } from "../models/chat.model.js";
 import { Request } from "../models/request.model.js";
 import { User } from "../models/user.model.js";
-import { emitEvent, generateToken } from "../utils/features.js";
+import { deleteFilesFromCloudinary, emitEvent, generateToken } from "../utils/features.js";
 import { ErrorHandler } from "../utils/utility.js";
 import { getOtherMember, uploadFilesToCloudinary } from "../utils/helper.js"
 
@@ -16,8 +16,10 @@ const registerUser = TryCatch(async (req, res, next) => {
     if (!file) {
         return next(new ErrorHandler("Please upload avatar", 400));
     }
-    const isUsernameTaken = await User.findOne({ username: username });
-    if (isUsernameTaken) {
+    if (!USERNAME_REGEX.test(username ?? "")) {
+        return next(new ErrorHandler(USERNAME_RULE_MESSAGE, 400));
+    }
+    if (await isUsernameTaken(username)) {
         return next(new ErrorHandler("Username is not available", 409));
     }
     const response = await uploadFilesToCloudinary([file]);
@@ -53,6 +55,109 @@ const getUserProfile = TryCatch(async (req, res) => {
     const user = await User.findById({ _id: req.user });
     return res.status(200).json({
         success: true,
+        user: user
+    });
+});
+
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// Case-insensitive so "John" and "john" can't both exist
+const isUsernameTaken = async (username, excludeUserId) => {
+    const query = { username: { $regex: `^${escapeRegex(username)}$`, $options: "i" } };
+    if (excludeUserId) query._id = { $ne: excludeUserId };
+    return !!(await User.exists(query));
+};
+
+const checkUsername = TryCatch(async (req, res) => {
+    const username = (req.query.username ?? "").trim();
+    if (!USERNAME_REGEX.test(username)) {
+        return res.status(200).json({ success: true, available: false, message: USERNAME_RULE_MESSAGE });
+    }
+    const taken = await isUsernameTaken(username, req.user);
+    return res.status(200).json({
+        success: true,
+        available: !taken,
+        message: taken ? "Username is already taken" : "Username is available"
+    });
+});
+
+const updateProfile = TryCatch(async (req, res, next) => {
+    const { name, bio, username, gender, phone } = req.body;
+    const user = await User.findById({ _id: req.user });
+    if (!user) {
+        return next(new ErrorHandler("User not found", 404));
+    }
+
+    if (username !== undefined && username.trim() !== user.username) {
+        const newUsername = username.trim();
+        if (!USERNAME_REGEX.test(newUsername)) {
+            return next(new ErrorHandler(USERNAME_RULE_MESSAGE, 400));
+        }
+        if (await isUsernameTaken(newUsername, user._id)) {
+            return next(new ErrorHandler("Username is already taken", 409));
+        }
+        user.username = newUsername;
+    }
+
+    if (phone !== undefined) {
+        // Accept common formatting like "+91 98765-43210" and store digits only
+        const normalized = phone.replace(/[\s\-().]/g, "");
+        if (normalized === "") {
+            user.phone = undefined;
+        } else if (!PHONE_REGEX.test(normalized)) {
+            return next(new ErrorHandler("Enter a valid phone number (7–15 digits)", 400));
+        } else {
+            user.phone = normalized;
+        }
+    }
+
+    if (gender !== undefined) {
+        if (gender === "") {
+            user.gender = undefined;
+        } else if (!GENDERS.includes(gender)) {
+            return next(new ErrorHandler("Invalid gender", 400));
+        } else {
+            user.gender = gender;
+        }
+    }
+
+    if (name !== undefined) {
+        if (!name.trim()) return next(new ErrorHandler("Name cannot be empty", 400));
+        user.name = name.trim();
+    }
+
+    if (bio !== undefined) {
+        if (!bio.trim()) return next(new ErrorHandler("Bio cannot be empty", 400));
+        user.bio = bio.trim();
+    }
+
+    let oldAvatarId;
+    if (req.file) {
+        const response = await uploadFilesToCloudinary([req.file]);
+        if (!response?.[0]) {
+            return next(new ErrorHandler("Failed to upload avatar", 500));
+        }
+        oldAvatarId = user.avatar?.public_id;
+        user.avatar = {
+            public_id: response[0].public_id,
+            url: response[0].secureUrl
+        };
+    }
+
+    try {
+        await user.save();
+    } catch (error) {
+        // Unique index race: someone took the username between check and save
+        if (error?.code === 11000) {
+            return next(new ErrorHandler("Username is already taken", 409));
+        }
+        throw error;
+    }
+    if (oldAvatarId) deleteFilesFromCloudinary([oldAvatarId]);
+
+    return res.status(200).json({
+        success: true,
+        message: "Profile updated",
         user: user
     });
 });
@@ -202,7 +307,7 @@ const getMyFriends = TryCatch(async (req, res, next) => {
 });
 
 export {
-    getUserProfile, login, logout, registerUser, searchUser,
+    getUserProfile, updateProfile, checkUsername, login, logout, registerUser, searchUser,
     sendFriendRequest, acceptFriendRequest, getMyNotifications,
     getMyFriends
 };

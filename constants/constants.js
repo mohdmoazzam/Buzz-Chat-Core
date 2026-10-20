@@ -16,4 +16,13 @@ const AppConfig = {
     CLOUDINARY_SECRET_KEY: "nQPMcUu4HSCIQaqQiRYLk5IytEs"
 };
 
-export { cookieOptions, AppConfig };
+// 3–20 characters: letters, numbers, underscore or dot
+const USERNAME_REGEX = /^[a-zA-Z0-9_.]{3,20}$/;
+const USERNAME_RULE_MESSAGE = "Username must be 3–20 characters: letters, numbers, _ or .";
+
+const GENDERS = ["male", "female", "other", "prefer_not_to_say"];
+
+// Stored normalized: optional leading +, then 7–15 digits
+const PHONE_REGEX = /^\+?[0-9]{7,15}$/;
+
+export { cookieOptions, AppConfig, USERNAME_REGEX, USERNAME_RULE_MESSAGE, GENDERS, PHONE_REGEX };

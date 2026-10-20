@@ -15,6 +15,14 @@ const schema = new Schema({
         required: true,
         unique: true
     },
+    gender: {
+        type: String,
+        enum: ["male", "female", "other", "prefer_not_to_say"]
+    },
+    phone: {
+        type: String,
+        trim: true
+    },
     password: {
         type: String,
         required: true,
