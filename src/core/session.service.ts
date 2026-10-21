@@ -83,10 +83,13 @@ export class SessionService {
         return session.user;
     }
 
-    /** Same check for socket handshakes, which only need the user's name. */
+    /** Same check for socket handshakes, which only need the user's name. Unverified accounts get no socket. */
     async nameFor(claims: SessionClaims): Promise<UserName | null> {
         const session = await this.prisma.sessions.findFirst({
-            where: this.activeWhere(claims),
+            where: {
+                ...this.activeWhere(claims),
+                user: { email_verified_at: { not: null } },
+            },
             select: {
                 last_seen_at: true,
                 user: { select: NAME_SELECT },
@@ -129,7 +132,9 @@ export class SessionService {
         const ids = sessions.map((session) => session.id);
         if (!ids.length) return 0;
 
-        await this.prisma.sessions.deleteMany({ where: { id: { in: ids } } });
+        await this.prisma.sessions.deleteMany({
+            where: { id: { in: ids } },
+        });
         this.realtime.endSessions(ids);
         return ids.length;
     }

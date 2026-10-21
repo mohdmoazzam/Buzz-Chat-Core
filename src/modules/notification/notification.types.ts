@@ -12,6 +12,7 @@ export type NotificationChannel = "email" | "in_app";
 export interface NotificationData {
     welcome: Record<string, never>;
     password_reset: { code: string; minutes: number };
+    email_verification: { code: string; minutes: number };
     friend_request_accepted: { chat_id: string };
     group_added: { chat_id: string; group_name: string };
 }
@@ -21,6 +22,7 @@ export type NotificationType = keyof NotificationData;
 export const NOTIFICATION_CHANNELS = {
     welcome: ["email"],
     password_reset: ["email"],
+    email_verification: ["email"],
     friend_request_accepted: ["in_app"],
     group_added: ["in_app"],
 } as const satisfies { [T in NotificationType]: readonly NotificationChannel[] };
@@ -47,6 +49,7 @@ export interface NotificationContext<T extends NotificationType = NotificationTy
 /** Every email template and the data it renders with. */
 export interface EmailTemplateData {
     "password-reset": { firstName: string; code: string; minutes: number };
+    "email-verification": { firstName: string; code: string; minutes: number };
     welcome: { firstName: string; username: string };
 }
 export type EmailTemplate = keyof EmailTemplateData;

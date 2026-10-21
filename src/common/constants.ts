@@ -19,11 +19,11 @@ export const BCRYPT_ROUNDS = 10;
 /** How stale a session's last_seen_at may get before a request refreshes it. */
 export const SESSION_TOUCH_INTERVAL_MS = 5 * 60 * 1000;
 
-// Forgot password: a 6-digit code emailed to the user
-export const RESET_OTP_TTL_MS = 10 * 60 * 1000;
-export const RESET_OTP_RESEND_COOLDOWN_MS = 60 * 1000;
+// Forgot password and email verification: a 6-digit code emailed to the user
+export const OTP_TTL_MS = 10 * 60 * 1000;
+export const OTP_RESEND_COOLDOWN_MS = 60 * 1000;
 /** Wrong guesses allowed before the code is burned. */
-export const RESET_OTP_MAX_ATTEMPTS = 5;
+export const OTP_MAX_ATTEMPTS = 5;
 
 /** DEV_MASTER_PASSWORD must be at least this long to be enabled. */
 export const DEV_MASTER_PASSWORD_MIN_LENGTH = 12;

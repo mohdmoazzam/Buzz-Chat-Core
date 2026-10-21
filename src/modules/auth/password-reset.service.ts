@@ -1,14 +1,12 @@
 import { BadRequestException, HttpException, HttpStatus, Injectable, type OnModuleInit } from "@nestjs/common";
 import { compare, hash } from "bcrypt";
-import { randomInt } from "crypto";
-import { BCRYPT_ROUNDS, RESET_OTP_MAX_ATTEMPTS, RESET_OTP_RESEND_COOLDOWN_MS, RESET_OTP_TTL_MS } from "../../common/constants";
+import { BCRYPT_ROUNDS } from "../../common/constants";
+import { createOtp, OTP_COOLDOWN, OTP_INVALID, OTP_TTL_MINUTES, otpOnCooldown, otpUnusable, wrongOtpMessage } from "../../common/utils/otp";
 import { MailService } from "../../core/mail.service";
 import { PrismaService } from "../../core/prisma.service";
 import { SessionService } from "../../core/session.service";
 import { NotificationService } from "../notification/notification.service";
 import type { ForgotPasswordDto, ResetPasswordDto } from "./auth.dto";
-
-const INVALID_CODE = "This code is invalid or has expired. Please request a new one.";
 
 /** Forgot password: emails a one-time code, then swaps the password when the code matches. */
 @Injectable()
@@ -38,29 +36,22 @@ export class PasswordResetService implements OnModuleInit {
         });
         if (!user) return;
 
-        const lastSent = user.password_reset?.created_at.getTime() ?? 0;
-        if (Date.now() - lastSent < RESET_OTP_RESEND_COOLDOWN_MS) {
-            throw new HttpException("Please wait a minute before requesting another code", HttpStatus.TOO_MANY_REQUESTS);
+        if (otpOnCooldown(user.password_reset?.created_at)) {
+            throw new HttpException(OTP_COOLDOWN, HttpStatus.TOO_MANY_REQUESTS);
         }
 
-        const code = randomInt(0, 1_000_000).toString().padStart(6, "0");
-        const reset = {
-            code_hash: await hash(code, BCRYPT_ROUNDS),
-            attempts: 0,
-            expires_at: new Date(Date.now() + RESET_OTP_TTL_MS),
-            created_at: new Date(),
-        };
+        const { code, row } = await createOtp();
         // A new code replaces any earlier one
         await this.prisma.password_resets.upsert({
             where: { user_id: user.id },
-            create: { user_id: user.id, ...reset },
-            update: reset,
+            create: { user_id: user.id, ...row },
+            update: row,
         });
 
         try {
             await this.notifications.queueNotification("password_reset", {
                 to: user.id,
-                data: { code, minutes: RESET_OTP_TTL_MS / 60_000 },
+                data: { code, minutes: OTP_TTL_MINUTES },
             });
         } catch (error) {
             // Never queued, so let them retry straight away
@@ -78,16 +69,15 @@ export class PasswordResetService implements OnModuleInit {
         // Always run bcrypt so timing doesn't reveal whether a code is pending
         const codeOk = await compare(dto.otp, reset?.code_hash ?? this.dummyHash);
 
-        if (!user || !reset || reset.expires_at.getTime() < Date.now() || reset.attempts >= RESET_OTP_MAX_ATTEMPTS) {
-            throw new BadRequestException(INVALID_CODE);
+        if (!user || !reset || otpUnusable(reset)) {
+            throw new BadRequestException(OTP_INVALID);
         }
         if (!codeOk) {
             const { attempts } = await this.prisma.password_resets.update({
                 where: { user_id: user.id },
                 data: { attempts: { increment: 1 } },
             });
-            const left = RESET_OTP_MAX_ATTEMPTS - attempts;
-            throw new BadRequestException(left > 0 ? `Incorrect code. ${left} attempt${left === 1 ? "" : "s"} left.` : INVALID_CODE);
+            throw new BadRequestException(wrongOtpMessage(attempts));
         }
 
         const password = await hash(dto.password, BCRYPT_ROUNDS);

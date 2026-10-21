@@ -23,18 +23,19 @@ All REST routes are under `/api/v1`. Interactive API docs are at `/api/docs` (Sw
 | Feature | Details |
 |---|---|
 | **Sign up** | Email, first/last name, username, bio, password and a required profile photo. The photo is uploaded first (`POST /assets`, works logged out), then its id is sent with the form. |
-| **Welcome email** | Queued after sign-up (template `welcome`). A queue outage never fails sign-up. |
+| **Email verification** | Sign-up logs you in and emails a 6-digit code (template `email-verification`). Until it's entered the account can only load `GET /user/me`, verify, resend or log out: other routes answer 403 and sockets are refused. The app shows `/verify-email` meanwhile. When Brevo isn't configured (local development), accounts start verified. |
+| **Welcome email** | Queued once the email is verified (template `welcome`). A queue outage never fails sign-up or verification. |
 | **Log in** | Username + password. Returns a session token as an httpOnly cookie *and* in the body (for the `Authorization: Bearer` header). Sessions last 15 days. |
 | **Log out** | Clears the cookie; works even with an expired session. |
 | **Forgot password** | Enter your email → a 6-digit code is emailed (template `password-reset`) → enter the code and a new password. |
 | **Case-insensitive identity** | Usernames and emails are `citext`: `John` and `john` are the same account. |
 
-**Forgot password rules**
+**Code rules (forgot password and email verification)**
 
-- Codes are stored only as a bcrypt hash (`password_resets` table), one pending code per user; a new request replaces the old code.
+- Codes are stored only as a bcrypt hash (`password_resets` and `email_verifications` tables), one pending code per user; a new request replaces the old code.
 - A code expires after **10 minutes** and stops working after **5 wrong guesses**. Wrong guesses report how many attempts are left.
 - A new code can be requested once a **minute**.
-- The response is the same whether or not the email has an account.
+- Forgot password answers the same whether or not the email has an account.
 
 | Route | Purpose |
 |---|---|
@@ -47,6 +48,8 @@ All REST routes are under `/api/v1`. Interactive API docs are at `/api/docs` (Sw
 | `DELETE /user/sessions` | Log out everywhere, this device included |
 | `POST /user/forgot-password` | `{ email }`: send a reset code |
 | `POST /user/reset-password` | `{ email, otp, password }`: set a new password |
+| `POST /user/verify-email` | `{ otp }`: verify the signed-in account's email; returns the updated user |
+| `POST /user/verify-email/resend` | Email a new verification code |
 
 **Development only:** with `NODE_ENV=development` and `DEV_MASTER_PASSWORD` (12+ characters) set, requests from the local machine can log in as any user with that password. It never works on a deployed server.
 
@@ -163,7 +166,8 @@ Any service ──> NotificationService ──────> Redis queues ──>
 | Event | Channel |
 |---|---|
 | Forgot password code | Email |
-| Sign up | Email (welcome) |
+| Sign up | Email (verification code) |
+| Email verified | Email (welcome) |
 | Friend request accepted | In-app, to the person who sent the request |
 | Added to a group (new group or added later) | In-app |
 
@@ -182,6 +186,7 @@ templates/email/
   password-reset/subject.ejs
   password-reset/html.ejs
   password-reset/text.ejs
+  email-verification/...
   welcome/...
 ```
 
@@ -220,7 +225,7 @@ At `/admin` on the frontend. Unlocked with `ADMIN_SECRET_KEY`; the admin session
 
 | Area | Protection |
 |---|---|
-| **Rate limits** | 300 requests/min per IP overall. Stricter limits: sign-up 10/hour, login 20/15 min, forgot password 5/15 min, reset password 10/15 min, uploads 60/15 min, admin login 10/15 min. |
+| **Rate limits** | 300 requests/min per IP overall. Stricter limits: sign-up 10/hour, login 20/15 min, forgot password 5/15 min, reset password 10/15 min, verify email 10/15 min, resend verification code 5/15 min, uploads 60/15 min, admin login 10/15 min. |
 | **Passwords** | bcrypt. Login takes the same time whether or not the username exists. |
 | **Access checks** | Every chat, message and socket action checks membership on the server. Ids and member lists sent by the client are never trusted. |
 | **Input** | All request bodies are validated, with readable error messages; JSON bodies are capped at 100 KB. |

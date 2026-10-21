@@ -48,6 +48,8 @@ CREATE TABLE users (
     password         text           NOT NULL,
     -- RESTRICT: an asset can't be deleted while it is someone's profile photo
     avatar_id        uuid           NOT NULL REFERENCES assets (id) ON DELETE RESTRICT,
+    -- null until the sign-up code is entered; unverified accounts can only verify or log out
+    email_verified_at timestamptz(6),
     created_at       timestamptz(6) NOT NULL DEFAULT now(),
     updated_at       timestamptz(6) NOT NULL DEFAULT now()
 );
@@ -131,10 +133,19 @@ CREATE TABLE password_resets (
     user_id    uuid           PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
     -- bcrypt hash of the 6-digit code (the code itself is only in the email)
     code_hash  text           NOT NULL,
-    -- Wrong guesses so far; the code stops working after RESET_OTP_MAX_ATTEMPTS
+    -- Wrong guesses so far; the code stops working after OTP_MAX_ATTEMPTS
     attempts   integer        NOT NULL DEFAULT 0,
     expires_at timestamptz(6) NOT NULL,
     -- When the code was sent (resend cooldown)
+    created_at timestamptz(6) NOT NULL DEFAULT now()
+);
+
+-- Email verification on sign-up: same shape as password_resets, one pending code per user
+CREATE TABLE email_verifications (
+    user_id    uuid           PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
+    code_hash  text           NOT NULL,
+    attempts   integer        NOT NULL DEFAULT 0,
+    expires_at timestamptz(6) NOT NULL,
     created_at timestamptz(6) NOT NULL DEFAULT now()
 );
 

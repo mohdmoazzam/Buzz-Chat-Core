@@ -77,7 +77,9 @@ async function bootstrap() {
         logger.warn("*** Cloudinary is not configured: avatar and file uploads will fail ***");
     }
     if (!app.get(MailService).isConfigured) {
-        logger.warn("*** Brevo is not configured (BREVO_API_KEY, BREVO_SENDER_EMAIL): forgot password will fail ***");
+        logger.warn(
+            "*** Brevo is not configured (BREVO_API_KEY, BREVO_SENDER_EMAIL): forgot password will fail and new accounts skip email verification ***",
+        );
     }
     if (isDevMasterPasswordEnabled()) {
         logger.warn("*** [DEV] Master password login is ENABLED (localhost only). Never use this in production. ***");

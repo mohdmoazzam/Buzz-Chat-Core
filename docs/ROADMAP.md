@@ -8,11 +8,10 @@ Size: **S** = about a day or less, **M** = a few days, **L** = a week or more.
 ## Next up (recommended order)
 
 1. **Reply to a message and emoji reactions** (S): expected in any chat app.
-2. **Email verification on sign-up** (S): reuses the OTP code and email queue from forgot password.
-3. **Log out everywhere** (S): closes the gap where a password reset leaves other devices logged in.
-4. **Web push notifications** (M): reach people when the app is closed.
+2. **Log out everywhere** (S): closes the gap where a password reset leaves other devices logged in.
+3. **Web push notifications** (M): reach people when the app is closed.
 
-Done: read receipts and server-side unread counts (see FEATURES.md, Chats).
+Done: read receipts and server-side unread counts (see FEATURES.md, Chats); email verification on sign-up (see FEATURES.md, Accounts).
 
 ## Messaging
 
@@ -55,7 +54,6 @@ Done: read receipts and server-side unread counts (see FEATURES.md, Chats).
 
 | Feature | Size | Notes |
 |---|---|---|
-| Email verification | S | Same OTP flow and `password-reset` style template. |
 | Change password while logged in | S | Reuses the bcrypt and validation code. |
 | Log out everywhere / token versioning | S | `token_version` on `users`, checked on every request, bumped on password reset. |
 | Sign in with Google | M | Passport is already set up; add `passport-google-oauth20`. |

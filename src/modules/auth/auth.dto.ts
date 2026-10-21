@@ -70,6 +70,14 @@ export class ResetPasswordDto extends ForgotPasswordDto {
     password!: string;
 }
 
+export class VerifyEmailDto {
+    @ApiProperty({ pattern: "^[0-9]{6}$", example: "123456" })
+    @Trim()
+    @Matches(/^[0-9]{6}$/)
+    @IsString()
+    otp!: string;
+}
+
 export class LoginDto {
     @ApiProperty()
     @Trim()
