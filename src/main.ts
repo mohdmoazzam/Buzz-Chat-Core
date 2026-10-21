@@ -32,7 +32,13 @@ async function bootstrap() {
     app.set("trust proxy", 1);
     app.disable("x-powered-by");
 
-    app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
+    app.use(
+        helmet({
+            crossOriginResourcePolicy: { policy: "cross-origin" },
+            // Over plain http (local dev) upgrading would load Swagger UI's scripts from https and leave a blank page
+            contentSecurityPolicy: { directives: { upgradeInsecureRequests: config.isProduction ? [] : null } },
+        })
+    );
     app.enableCors({ origin: config.corsOrigins, credentials: true });
     app.use(express.json({ limit: "100kb" }));
     app.use(express.urlencoded({ extended: false, limit: "100kb" }));

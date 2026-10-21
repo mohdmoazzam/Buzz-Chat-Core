@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiQuery, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthenticatedController } from '../../common/base.controller';
 import { PaginationQuery } from '../../common/swagger';
@@ -15,14 +15,12 @@ export class FriendController extends AuthenticatedController {
     }
 
     @Get('search')
-    @ApiOperation({ summary: 'Search people (paginated)' })
     @PaginationQuery(['name', 'username', 'created_at'])
     async searchUsers(@CurrentUser() user: AuthUser, @Query() query: Record<string, unknown>) {
         return { success: true, ...(await this.friends.searchUsers(user.id, query)) };
     }
 
     @Get('friends')
-    @ApiOperation({ summary: 'List my friends' })
     @ApiQuery({ name: 'chat_id', required: false, description: 'Leave out friends already in this group' })
     async getFriends(@CurrentUser() user: AuthUser, @Query('chat_id') chatId: unknown) {
         return { success: true, data: await this.friends.getFriends(user.id, chatId) };
@@ -31,24 +29,17 @@ export class FriendController extends AuthenticatedController {
     // Friend requests
 
     @Get('friend-requests')
-    @ApiOperation({ summary: 'List friend requests sent to me' })
     async getNotifications(@CurrentUser() user: AuthUser) {
         return { success: true, data: await this.friends.getNotifications(user.id) };
     }
 
     @Post('friend-requests')
-    @ApiOperation({ summary: 'Send a friend request' })
-    @ApiBody({
-        schema: { type: 'object', required: ['user_id'], properties: { user_id: { type: 'string', format: 'uuid' } } },
-    })
     async sendRequest(@CurrentUser() user: AuthUser, @Body('user_id') userId: unknown) {
         await this.friends.sendRequest(user.id, userId);
         return { success: true, message: 'Friend request sent' };
     }
 
     @Put('friend-requests/:id')
-    @ApiOperation({ summary: 'Accept or decline a friend request' })
-    @ApiBody({ schema: { type: 'object', required: ['accept'], properties: { accept: { type: 'boolean' } } } })
     async respondToRequest(@CurrentUser() user: AuthUser, @Param('id') requestId: string, @Body('accept') accept: unknown) {
         const senderId = await this.friends.respondToRequest(user.id, requestId, accept === true || accept === 'true');
         return senderId

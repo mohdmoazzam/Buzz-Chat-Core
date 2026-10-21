@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Query } from "@nestjs/common";
-import { ApiBody, ApiOperation, ApiQuery, ApiTags } from "@nestjs/swagger";
+import { ApiQuery, ApiTags } from "@nestjs/swagger";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { AuthenticatedController } from "../../common/base.controller";
 import type { AuthUser } from "../user/user.serializer";
@@ -16,20 +16,6 @@ export class MessageController extends AuthenticatedController {
     // JSON body: { attachment_ids } — files are uploaded first with POST /assets
     @Post()
     @HttpCode(200)
-    @ApiOperation({ summary: "Send attachments to a chat" })
-    @ApiBody({
-        schema: {
-            type: "object",
-            required: ["attachment_ids"],
-            properties: {
-                attachment_ids: {
-                    type: "array",
-                    items: { type: "string", format: "uuid" },
-                    description: "Asset ids from POST /assets",
-                },
-            },
-        },
-    })
     async sendAttachments(
         @CurrentUser() user: AuthUser,
         @Param("id") chatId: string,
@@ -40,7 +26,6 @@ export class MessageController extends AuthenticatedController {
     }
 
     @Get()
-    @ApiOperation({ summary: "Get a chat's messages (newest page first)" })
     @ApiQuery({ name: "page", required: false, type: Number })
     async getMessages(@CurrentUser() user: AuthUser, @Param("id") id: string, @Query("page") page?: string) {
         return { success: true, ...(await this.messages.getMessages(user.id, id, page)) };

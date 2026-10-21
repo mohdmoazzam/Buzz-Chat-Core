@@ -6,7 +6,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from "@nestjs/common";
-import { ApiBody, ApiConsumes, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { ApiConsumes, ApiTags } from "@nestjs/swagger";
 import type { Request } from "express";
 import { UPLOAD_MAX_FILES, UPLOAD_RATE_LIMIT_MESSAGE } from "../../common/constants";
 import { OptionalJwtAuthGuard } from "../../common/guards/jwt-auth.guard";
@@ -28,15 +28,7 @@ export class AssetsController {
   @UseGuards(OptionalJwtAuthGuard)
   @RateLimit(60, 15, UPLOAD_RATE_LIMIT_MESSAGE)
   @UseInterceptors(FilesUpload)
-  @ApiOperation({ summary: `Upload up to ${UPLOAD_MAX_FILES} files; returns asset ids for other routes` })
   @ApiConsumes("multipart/form-data")
-  @ApiBody({
-    schema: {
-      type: "object",
-      required: ["files"],
-      properties: { files: { type: "array", items: { type: "string", format: "binary" } } },
-    },
-  })
   async upload(
     @Req() req: Request,
     @UploadedFiles() files?: Express.Multer.File[],

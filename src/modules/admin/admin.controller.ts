@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, Post, Res, UnauthorizedException } from "@nestjs/common";
-import { ApiBody, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { ApiTags } from "@nestjs/swagger";
 import type { Response } from "express";
 import { config } from "../../config/env";
 import { AdminBaseController } from "../../common/base.controller";
@@ -17,8 +17,6 @@ export class AdminAuthController {
     @Post("verify")
     @HttpCode(200)
     @RateLimit(10, 15, TRY_LATER)
-    @ApiOperation({ summary: "Exchange the admin secret key for an admin session" })
-    @ApiBody({ schema: { type: "object", required: ["secret_key"], properties: { secret_key: { type: "string" } } } })
     verify(@Body("secret_key") secretKey: unknown, @Res({ passthrough: true }) res: Response) {
         if (!this.admin.isAdminKey(secretKey)) {
             throw new UnauthorizedException("Invalid admin key");
@@ -29,7 +27,6 @@ export class AdminAuthController {
     }
 
     @Get("logout")
-    @ApiOperation({ summary: "Clear the admin session cookie" })
     logout(@Res({ passthrough: true }) res: Response) {
         res.cookie(ADMIN_COOKIE, "", { ...cookieOptions, maxAge: 0 });
         return { success: true, message: "Logged out successfully" };
