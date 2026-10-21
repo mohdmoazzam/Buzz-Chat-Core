@@ -81,13 +81,25 @@ export class AssetsService {
         }
     }
 
-    /** Deletes asset rows and their Cloudinary files without making the caller wait. */
+    /**
+     * Deletes asset rows and their Cloudinary files without making the caller wait.
+     * Assets still in use elsewhere (e.g. by a forwarded copy of a message) are kept.
+     */
     removeInBackground(assetIds: Array<string | null | undefined>): void {
         const ids = assetIds.filter((id): id is string => Boolean(id));
         if (!ids.length) return;
         (async () => {
-            const assets = await this.prisma.assets.findMany({ where: { id: { in: ids } }, select: { public_id: true } });
-            await this.prisma.assets.deleteMany({ where: { id: { in: ids } } });
+            const assets = await this.prisma.assets.findMany({
+                where: {
+                    id: { in: ids },
+                    user_avatars: { none: {} },
+                    chat_avatars: { none: {} },
+                    message_attachments: { none: {} },
+                },
+                select: { id: true, public_id: true },
+            });
+            if (!assets.length) return;
+            await this.prisma.assets.deleteMany({ where: { id: { in: assets.map((asset) => asset.id) } } });
             this.storage.removeInBackground(assets.map((asset) => asset.public_id));
         })().catch((error: Error) => this.logger.error(`Asset cleanup failed: ${error?.message ?? error}`));
     }

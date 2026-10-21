@@ -87,6 +87,12 @@ CREATE TABLE messages (
     chat_id     uuid           NOT NULL REFERENCES chats (id) ON DELETE CASCADE,
     sender_id   uuid           NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     content     text           NOT NULL DEFAULT '',
+    -- Copied from another chat (shows a "Forwarded" label)
+    forwarded   boolean        NOT NULL DEFAULT false,
+    -- Set when the sender edits the text
+    edited_at   timestamptz(6),
+    -- Set when the sender deletes it for everyone; the row stays as a placeholder
+    deleted_at  timestamptz(6),
     created_at  timestamptz(6) NOT NULL DEFAULT now(),
     updated_at  timestamptz(6) NOT NULL DEFAULT now()
 );

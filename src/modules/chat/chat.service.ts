@@ -12,6 +12,8 @@ import { AVATAR_SELECT, PERSON_SELECT } from "../user/user.serializer";
 import { ChatAccess, groupAvatar, MEMBER_ORDER, memberIdsOf, type ChatWithMemberIds } from "./chat.access";
 
 interface LastMessagePreview {
+    id: string;
+    deleted_at: Date | null;
     content: string;
     attachments: { url: string }[];
     created_at: Date;
@@ -19,6 +21,8 @@ interface LastMessagePreview {
 }
 
 interface LastMessageRow {
+    id: string;
+    deleted_at: Date | null;
     chat_id: string;
     content: string;
     attachments: { url: string }[];
@@ -150,7 +154,7 @@ export class ChatService {
         if (!chatIds.length) return new Map();
         const rows = await this.prisma.$queryRaw<LastMessageRow[]>`
             SELECT DISTINCT ON (m.chat_id)
-                m.chat_id, m.content, m.created_at, u.id AS sender_id, u.first_name, u.last_name,
+                m.chat_id, m.id, m.content, m.deleted_at, m.created_at, u.id AS sender_id, u.first_name, u.last_name,
                 -- Only the URLs are needed to describe the attachment type
                 COALESCE((
                     SELECT json_agg(json_build_object('url', a.url) ORDER BY ma.position)
@@ -163,7 +167,9 @@ export class ChatService {
             ORDER BY m.chat_id, m.created_at DESC`;
 
         return new Map(rows.map((row) => [row.chat_id, {
+            id: row.id,
             content: row.content ?? "",
+            deleted_at: row.deleted_at,
             attachments: row.attachments,
             created_at: row.created_at,
             sender: { id: row.sender_id, first_name: row.first_name, last_name: row.last_name },

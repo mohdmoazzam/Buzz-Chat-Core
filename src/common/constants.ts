@@ -57,6 +57,10 @@ export const SEARCH_MAX = 50;
 
 export const MESSAGE_MAX = 4000;
 export const MESSAGES_PAGE_SIZE = 20;
+/** How long after sending the sender can still edit a message. */
+export const MESSAGE_EDIT_WINDOW_MS = 15 * 60 * 1000;
+/** Max chats a message can be forwarded to at once. */
+export const FORWARD_MAX_CHATS = 5;
 
 // Error messages
 

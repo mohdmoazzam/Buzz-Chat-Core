@@ -7,6 +7,8 @@ export const NEW_MESSAGE_ALERT = "NEW_MESSAGE_ALERT";
 
 export const NEW_REQUEST = "NEW_REQUEST";
 export const NEW_MESSAGE = "NEW_MESSAGE";
+export const MESSAGE_UPDATED = "MESSAGE_UPDATED";
+export const MESSAGE_DELETED = "MESSAGE_DELETED";
 
 export const START_TYPING = "START_TYPING";
 export const STOP_TYPING = "STOP_TYPING";
