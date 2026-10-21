@@ -3,6 +3,7 @@ import { ConflictException, Injectable, Logger, UnauthorizedException, type OnMo
 import { compare, hash } from "bcrypt";
 import type { Request } from "express";
 import { isUniqueViolation } from "../../common/errors";
+import { MailService } from "../../core/mail.service";
 import { PrismaService } from "../../core/prisma.service";
 import { AssetsService } from "../assets/assets.service";
 import { NotificationService } from "../notification/notification.service";
@@ -10,6 +11,7 @@ import { AVATAR_SELECT, serializeUser, USER_VIEW, type AuthUser } from "../user/
 import { UserService } from "../user/user.service";
 import type { LoginDto, RegisterDto } from "./auth.dto";
 import { isDevMasterLogin } from "./dev-master-password";
+import { EmailVerificationService } from "./email-verification.service";
 
 @Injectable()
 export class AuthService implements OnModuleInit {
@@ -22,6 +24,8 @@ export class AuthService implements OnModuleInit {
         private readonly users: UserService,
         private readonly assets: AssetsService,
         private readonly notifications: NotificationService,
+        private readonly mail: MailService,
+        private readonly verification: EmailVerificationService,
     ) {}
 
     async onModuleInit(): Promise<void> {
@@ -39,6 +43,8 @@ export class AuthService implements OnModuleInit {
 
         await this.assets.assertUsable([dto.avatar_id], null, { imagesOnly: true });
         const password = await hash(dto.password, BCRYPT_ROUNDS);
+        // Without email (e.g. local development) a code could never arrive, so accounts start verified
+        const needsVerification = this.mail.isConfigured;
 
         let created: AuthUser;
         try {
@@ -52,6 +58,7 @@ export class AuthService implements OnModuleInit {
                         username: dto.username,
                         password,
                         avatar_id: dto.avatar_id,
+                        email_verified_at: needsVerification ? null : new Date(),
                     },
                     ...USER_VIEW,
                 });
@@ -70,13 +77,12 @@ export class AuthService implements OnModuleInit {
             throw error;
         }
 
-        // The account exists either way; a welcome email that can't be queued isn't worth failing sign-up
-        this.notifications
-            .queueNotification("welcome", {
-                to: created.id,
-                data: {},
-            })
-            .catch(() => undefined);
+        // The account exists either way; an email that can't be queued isn't worth failing sign-up.
+        // A missing code can be resent; the welcome email follows verification.
+        const email = needsVerification
+            ? this.verification.sendCode(created.id)
+            : this.notifications.queueNotification("welcome", { to: created.id, data: {} });
+        email.catch(() => undefined);
         return created;
     }
 

@@ -25,7 +25,8 @@ export class AuthController {
     @RateLimit(10, 60, "Too many accounts created. Please try again later.")
     async register(@Body() dto: RegisterDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
         const user = await this.auth.register(dto);
-        return this.startSession(req, res, user, "Account created");
+        const message = user.email_verified_at ? "Account created" : `Account created. Enter the code we sent to ${user.email}.`;
+        return this.startSession(req, res, user, message);
     }
 
     @Post("login")

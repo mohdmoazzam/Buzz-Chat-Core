@@ -2,6 +2,7 @@ import { Body, Controller, Get, Put, Query } from "@nestjs/common";
 import { ApiQuery, ApiTags } from "@nestjs/swagger";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { AuthenticatedController } from "../../common/base.controller";
+import { AllowUnverified } from "../../common/guards/jwt-auth.guard";
 import type { AuthUser } from "./user.serializer";
 import { UpdateProfileDto } from "./user.dto";
 import { UserService } from "./user.service";
@@ -14,8 +15,10 @@ export class UserController extends AuthenticatedController {
         super();
     }
 
-    // JwtAuthGuard already loaded the user for this request
+    // JwtAuthGuard already loaded the user for this request. Open to unverified accounts,
+    // so the client can see email_verified_at and show the verification screen
     @Get("me")
+    @AllowUnverified()
     getProfile(@CurrentUser() user: AuthUser) {
         return { success: true, user };
     }

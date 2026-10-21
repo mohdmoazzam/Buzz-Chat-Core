@@ -30,6 +30,14 @@ export const EMAIL_BUILDERS: Builders<EmailNotificationType, EmailContent> = {
             minutes: data.minutes,
         },
     }),
+    email_verification: ({ recipient, data }) => ({
+        template: "email-verification",
+        data: {
+            firstName: recipient.first_name,
+            code: data.code,
+            minutes: data.minutes,
+        },
+    }),
 };
 
 /** Title and body for each notification type delivered in-app. */
