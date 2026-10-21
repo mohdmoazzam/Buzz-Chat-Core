@@ -33,7 +33,7 @@ export class EmailProcessor extends WorkerHost {
         if (!job) return;
         const final = job.attemptsMade >= (job.opts.attempts ?? 1) || error instanceof UnrecoverableError;
         this.logger.error(
-            `"${job.data.template}" email (job ${job.id}) failed on attempt ${job.attemptsMade}${final ? ", giving up" : ""}: ${error.message}`
+            `"${job.data.template}" email (job ${job.id}) failed on attempt ${job.attemptsMade}${final ? ", giving up" : ""}: ${error.message}`,
         );
     }
 }

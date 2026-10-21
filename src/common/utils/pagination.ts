@@ -42,8 +42,7 @@ const parsePositiveInt = (value: unknown, name: string, fallback: number): numbe
     return parsed;
 };
 
-const readString = (value: unknown): string | undefined =>
-    typeof value === "string" && value.trim() ? value.trim() : undefined;
+const readString = (value: unknown): string | undefined => (typeof value === "string" && value.trim() ? value.trim() : undefined);
 
 /**
  * Parses ?page=&take=&order_by=&order= into a validated pagination object.
@@ -51,7 +50,7 @@ const readString = (value: unknown): string | undefined =>
  */
 export const parsePagination = <Field extends string, Column extends string>(
     query: Record<string, unknown>,
-    { orderFields, defaultOrderBy, defaultOrder = "desc", defaultTake = 20, maxTake = 100 }: PaginationOptions<Field, Column>
+    { orderFields, defaultOrderBy, defaultOrder = "desc", defaultTake = 20, maxTake = 100 }: PaginationOptions<Field, Column>,
 ): Pagination<Column> => {
     const page = parsePositiveInt(query.page, "page", 1);
     const take = parsePositiveInt(query.take, "take", defaultTake);
@@ -75,10 +74,7 @@ export const parsePagination = <Field extends string, Column extends string>(
         take,
         skip: (page - 1) * take,
         order,
-        orderBy: [
-            ...orderFields[orderBy].map((column) => ({ [column]: order }) as OrderBy<Column>),
-            { id: order } as OrderBy<Column>,
-        ],
+        orderBy: [...orderFields[orderBy].map((column) => ({ [column]: order }) as OrderBy<Column>), { id: order } as OrderBy<Column>],
     };
 };
 

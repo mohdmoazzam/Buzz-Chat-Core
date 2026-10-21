@@ -12,7 +12,9 @@
     "db:pull": "prisma db pull && prisma generate",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "format": "prettier --write \"src/**/*.ts\" prisma.config.ts",
+    "format:check": "prettier --check \"src/**/*.ts\" prisma.config.ts"
   },
   "license": "ISC",
   "dependencies": {
@@ -59,6 +61,7 @@
   "devDependencies": {
     "@faker-js/faker": "^8.4.1",
     "@nestjs/cli": "^11.0.24",
+    "prettier": "^3.9.10",
     "tsx": "4.19.2"
   },
   "engines": {

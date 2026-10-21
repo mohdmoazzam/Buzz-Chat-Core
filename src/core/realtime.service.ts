@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import type { Server } from 'socket.io';
+import { Injectable } from "@nestjs/common";
+import type { Server } from "socket.io";
 
 // Every socket joins a per-user room, so a user with several tabs/devices
 // receives events on all of them and closing one doesn't break the others.

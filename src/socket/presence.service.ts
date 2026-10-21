@@ -9,7 +9,10 @@ export class PresenceService {
     // userId -> number of connected sockets (a user can have several tabs/devices)
     private readonly connectionCounts = new Map<string, number>();
 
-    constructor(private readonly access: ChatAccess, private readonly realtime: RealtimeService) {}
+    constructor(
+        private readonly access: ChatAccess,
+        private readonly realtime: RealtimeService,
+    ) {}
 
     isOnline(userId: string): boolean {
         return this.connectionCounts.has(userId);
@@ -35,7 +38,11 @@ export class PresenceService {
     /** Re-sends the user's view of which contacts are online. */
     async sendPresenceTo(userId: string): Promise<void> {
         const contacts = await this.access.getContactIds(userId);
-        this.realtime.emitToUsers([userId], ONLINE_USERS, contacts.filter((id) => this.isOnline(id)));
+        this.realtime.emitToUsers(
+            [userId],
+            ONLINE_USERS,
+            contacts.filter((id) => this.isOnline(id)),
+        );
     }
 
     private async notifyContacts(userId: string): Promise<void> {

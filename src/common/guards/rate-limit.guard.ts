@@ -6,10 +6,7 @@ const RATE_LIMIT_MESSAGE = "rateLimitMessage";
 
 /** A stricter per-route limit (e.g. login brute-force protection) with its own message. */
 export const RateLimit = (limit: number, windowMinutes: number, message: string) =>
-    applyDecorators(
-        Throttle({ default: { limit, ttl: windowMinutes * 60 * 1000 } }),
-        SetMetadata(RATE_LIMIT_MESSAGE, message)
-    );
+    applyDecorators(Throttle({ default: { limit, ttl: windowMinutes * 60 * 1000 } }), SetMetadata(RATE_LIMIT_MESSAGE, message));
 
 /**
  * Routes without @RateLimit share one per-IP budget (the global API ceiling);

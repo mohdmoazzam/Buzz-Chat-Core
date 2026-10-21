@@ -1,8 +1,7 @@
 import type { Prisma } from "../../../prisma/generated/client";
 
 /** A trimmed search term from the query string, capped at `max` characters. */
-export const readSearch = (value: unknown, max: number): string =>
-    typeof value === "string" ? value.trim().slice(0, max) : "";
+export const readSearch = (value: unknown, max: number): string => (typeof value === "string" ? value.trim().slice(0, max) : "");
 
 /**
  * Case-insensitive "contains" filter for Prisma. LIKE wildcards are escaped

@@ -53,20 +53,20 @@ export class FriendService {
         const pageIds = users.map((user) => user.id);
         const [pendingRequests, friendChats] = pageIds.length
             ? await Promise.all([
-                this.prisma.friend_requests.findMany({
-                    where: {
-                        OR: [
-                            { sender_id: me, receiver_id: { in: pageIds } },
-                            { receiver_id: me, sender_id: { in: pageIds } },
-                        ],
-                    },
-                    select: { sender_id: true, receiver_id: true },
-                }),
-                this.prisma.chats.findMany({
-                    where: { direct_key: { in: pageIds.map((id) => directChatKey(me, id)) } },
-                    select: { id: true, direct_key: true },
-                }),
-            ])
+                  this.prisma.friend_requests.findMany({
+                      where: {
+                          OR: [
+                              { sender_id: me, receiver_id: { in: pageIds } },
+                              { receiver_id: me, sender_id: { in: pageIds } },
+                          ],
+                      },
+                      select: { sender_id: true, receiver_id: true },
+                  }),
+                  this.prisma.chats.findMany({
+                      where: { direct_key: { in: pageIds.map((id) => directChatKey(me, id)) } },
+                      select: { id: true, direct_key: true },
+                  }),
+              ])
             : [[], []];
 
         const relationship = new Map<string, Relationship>();
@@ -105,7 +105,12 @@ export class FriendService {
         const [target, existingRequest, existingChat] = await Promise.all([
             this.prisma.users.findUnique({ where: { id: userId }, select: { id: true } }),
             this.prisma.friend_requests.findFirst({
-                where: { OR: [{ sender_id: me, receiver_id: userId }, { sender_id: userId, receiver_id: me }] },
+                where: {
+                    OR: [
+                        { sender_id: me, receiver_id: userId },
+                        { sender_id: userId, receiver_id: me },
+                    ],
+                },
                 select: { id: true },
             }),
             this.prisma.chats.findUnique({ where: { direct_key: directChatKey(me, userId) }, select: { id: true } }),

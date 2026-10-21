@@ -80,26 +80,30 @@ export class ChatService {
         ]);
 
         const chatIds = chats.map((chat) => chat.id);
-        const [lastMessages, unread] = await Promise.all([
-            this.getLastMessages(chatIds),
-            this.readState.unreadCounts(me, chatIds),
-        ]);
+        const [lastMessages, unread] = await Promise.all([this.getLastMessages(chatIds), this.readState.unreadCounts(me, chatIds)]);
 
         const transformedChats = chats.flatMap((chat) => {
             const members = chat.members.map((member) => member.user);
             const otherMember = members.find((member) => member.id !== me);
             // A 1:1 chat whose other member was deleted has nothing to show
             if (!chat.group_chat && !otherMember) return [];
-            return [{
-                id: chat.id,
-                // 1:1 chats are named after the other person
-                name: chat.group_chat ? chat.name : otherMember && fullName(otherMember),
-                group_chat: chat.group_chat,
-                avatar: chat.group_chat ? groupAvatar(chat, members.map((m) => m.avatar.url)) : [otherMember?.avatar.url],
-                members: members.filter((m) => m.id !== me).map((m) => m.id),
-                last_message: lastMessages.get(chat.id) ?? null,
-                unread_count: unread.get(chat.id) ?? 0,
-            }];
+            return [
+                {
+                    id: chat.id,
+                    // 1:1 chats are named after the other person
+                    name: chat.group_chat ? chat.name : otherMember && fullName(otherMember),
+                    group_chat: chat.group_chat,
+                    avatar: chat.group_chat
+                        ? groupAvatar(
+                              chat,
+                              members.map((m) => m.avatar.url),
+                          )
+                        : [otherMember?.avatar.url],
+                    members: members.filter((m) => m.id !== me).map((m) => m.id),
+                    last_message: lastMessages.get(chat.id) ?? null,
+                    unread_count: unread.get(chat.id) ?? 0,
+                },
+            ];
         });
 
         return { chats: transformedChats, pagination: paginationMeta(page, take, total) };
@@ -182,13 +186,18 @@ export class ChatService {
             WHERE m.chat_id = ANY(${chatIds}::uuid[])
             ORDER BY m.chat_id, m.created_at DESC`;
 
-        return new Map(rows.map((row) => [row.chat_id, {
-            id: row.id,
-            content: row.content ?? "",
-            deleted_at: row.deleted_at,
-            attachments: row.attachments,
-            created_at: row.created_at,
-            sender: { id: row.sender_id, first_name: row.first_name, last_name: row.last_name },
-        }]));
+        return new Map(
+            rows.map((row) => [
+                row.chat_id,
+                {
+                    id: row.id,
+                    content: row.content ?? "",
+                    deleted_at: row.deleted_at,
+                    attachments: row.attachments,
+                    created_at: row.created_at,
+                    sender: { id: row.sender_id, first_name: row.first_name, last_name: row.last_name },
+                },
+            ]),
+        );
     }
 }

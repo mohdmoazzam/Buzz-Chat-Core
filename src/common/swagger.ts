@@ -9,7 +9,7 @@ export const PaginationQuery = (orderFields: string[]) =>
         ApiQuery({ name: "take", required: false, type: Number, example: 20 }),
         ApiQuery({ name: "order_by", required: false, enum: orderFields }),
         ApiQuery({ name: "order", required: false, enum: ["asc", "desc"] }),
-        ApiQuery({ name: "search", required: false, type: String })
+        ApiQuery({ name: "search", required: false, type: String }),
     );
 
 export const SWAGGER_PATH = "api/docs";
@@ -25,11 +25,17 @@ export const setupSwagger = (app: INestApplication): void => {
         .setDescription(
             "REST API for BuzzChat. Log in with POST /user/login (or POST /admin/verify for admin routes), " +
                 "then paste the returned token into Authorize. Files are uploaded first with POST /assets, " +
-                "and other routes take the returned asset ids."
+                "and other routes take the returned asset ids.",
         )
         .setVersion("1.0")
-        .addBearerAuth({ type: "http", scheme: "bearer", bearerFormat: "JWT", description: "access_token from POST /user/login" }, USER_AUTH)
-        .addBearerAuth({ type: "http", scheme: "bearer", bearerFormat: "JWT", description: "admin_token from POST /admin/verify" }, ADMIN_AUTH)
+        .addBearerAuth(
+            { type: "http", scheme: "bearer", bearerFormat: "JWT", description: "access_token from POST /user/login" },
+            USER_AUTH,
+        )
+        .addBearerAuth(
+            { type: "http", scheme: "bearer", bearerFormat: "JWT", description: "admin_token from POST /admin/verify" },
+            ADMIN_AUTH,
+        )
         .addCookieAuth(AUTH_COOKIE, { type: "apiKey", in: "cookie", name: AUTH_COOKIE }, `${USER_AUTH}-cookie`)
         .addCookieAuth(ADMIN_COOKIE, { type: "apiKey", in: "cookie", name: ADMIN_COOKIE }, `${ADMIN_AUTH}-cookie`)
         .build();

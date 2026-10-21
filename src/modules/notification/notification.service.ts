@@ -20,7 +20,7 @@ const withTimeout = <T>(promise: Promise<T>): Promise<T> =>
     Promise.race([
         promise,
         new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error("Timed out adding the job to the queue")), ENQUEUE_TIMEOUT_MS).unref()
+            setTimeout(() => reject(new Error("Timed out adding the job to the queue")), ENQUEUE_TIMEOUT_MS).unref(),
         ),
     ]);
 
@@ -60,8 +60,8 @@ export class NotificationService {
                     recipients.map((user_id) => ({
                         name: type,
                         data: { id: randomUUID(), user_id, actor_id: actorId, type, data } as InAppJob,
-                    }))
-                )
+                    })),
+                ),
             );
         } catch (error) {
             this.logger.error(`Couldn't queue "${type}" notifications: ${(error as Error)?.message ?? error}`);

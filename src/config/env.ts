@@ -23,7 +23,10 @@ const jwtSecret = (): string => {
 };
 
 const parseOrigins = (value = ""): string[] =>
-    value.split(",").map((origin) => origin.trim().replace(/\/+$/, "")).filter(Boolean);
+    value
+        .split(",")
+        .map((origin) => origin.trim().replace(/\/+$/, ""))
+        .filter(Boolean);
 
 export const config = Object.freeze({
     env: NODE_ENV,
@@ -35,7 +38,7 @@ export const config = Object.freeze({
 
     jwtSecret: jwtSecret(),
     tokenTtlSeconds: 15 * 24 * 60 * 60, // 15 days
-    adminTokenTtlSeconds: 15 * 60,      // 15 minutes
+    adminTokenTtlSeconds: 15 * 60, // 15 minutes
     adminSecretKey: process.env.ADMIN_SECRET_KEY ?? "",
 
     // Swagger UI at /api/docs: on outside production, opt-in there with SWAGGER_ENABLED=true

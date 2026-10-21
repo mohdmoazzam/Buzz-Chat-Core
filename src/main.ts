@@ -38,7 +38,7 @@ async function bootstrap() {
             crossOriginResourcePolicy: { policy: "cross-origin" },
             // Over plain http (local dev) upgrading would load Swagger UI's scripts from https and leave a blank page
             contentSecurityPolicy: { directives: { upgradeInsecureRequests: config.isProduction ? [] : null } },
-        })
+        }),
     );
     app.enableCors({ origin: config.corsOrigins, credentials: true });
     app.use(express.json({ limit: "100kb" }));
@@ -54,7 +54,10 @@ async function bootstrap() {
 
     // Every API route lives under /api/v1; "/" and "/health" stay at the root for uptime checks
     app.setGlobalPrefix("api/v1", {
-        exclude: [{ path: "/", method: RequestMethod.GET }, { path: "health", method: RequestMethod.GET }],
+        exclude: [
+            { path: "/", method: RequestMethod.GET },
+            { path: "health", method: RequestMethod.GET },
+        ],
     });
     app.useGlobalPipes(createValidationPipe());
     app.useGlobalFilters(new AllExceptionsFilter());

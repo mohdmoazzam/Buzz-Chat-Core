@@ -1,7 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
-import {
-    FORWARD_MAX_CHATS, MESSAGE_EDIT_WINDOW_MS, MESSAGE_MAX, MESSAGES_PAGE_SIZE, UPLOAD_MAX_FILES,
-} from "../../common/constants";
+import { FORWARD_MAX_CHATS, MESSAGE_EDIT_WINDOW_MS, MESSAGE_MAX, MESSAGES_PAGE_SIZE, UPLOAD_MAX_FILES } from "../../common/constants";
 import { areValidIds, isValidId, toIdList } from "../../common/utils/ids";
 import { PrismaService } from "../../core/prisma.service";
 import { RealtimeService } from "../../core/realtime.service";
@@ -70,7 +68,11 @@ export class MessageService {
         const message = { ...withAssets(row), sender };
 
         this.realtime.emitToUsers(memberIds, NEW_MESSAGE, { chat_id: chatId, message });
-        this.realtime.emitToUsers(memberIds.filter((id) => id !== sender.id), NEW_MESSAGE_ALERT, { chat_id: chatId });
+        this.realtime.emitToUsers(
+            memberIds.filter((id) => id !== sender.id),
+            NEW_MESSAGE_ALERT,
+            { chat_id: chatId },
+        );
         // Replying means you've read the chat; the message is already delivered, so this can't fail it
         await this.readState.markSent(chatId, sender.id, row.created_at, memberIds).catch(() => undefined);
         return message;
@@ -221,9 +223,7 @@ export class MessageService {
 
     /** A message in this chat (404 if it isn't there). */
     private async findMessage(chat: ChatWithMemberIds, messageId: unknown) {
-        const message = isValidId(messageId)
-            ? await this.prisma.messages.findFirst({ where: { id: messageId, chat_id: chat.id } })
-            : null;
+        const message = isValidId(messageId) ? await this.prisma.messages.findFirst({ where: { id: messageId, chat_id: chat.id } }) : null;
         if (!message) throw new NotFoundException("Message not found");
         return message;
     }

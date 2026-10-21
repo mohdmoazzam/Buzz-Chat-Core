@@ -75,9 +75,10 @@ export class AuthService implements OnModuleInit {
     }
 
     async login(dto: LoginDto, req: Request): Promise<AuthUser> {
-        const user = dto.username.length <= 50
-            ? await this.prisma.users.findUnique({ where: { username: dto.username }, include: { avatar: AVATAR_SELECT } })
-            : null;
+        const user =
+            dto.username.length <= 50
+                ? await this.prisma.users.findUnique({ where: { username: dto.username }, include: { avatar: AVATAR_SELECT } })
+                : null;
 
         const isMasterLogin = !!user && isDevMasterLogin(req, dto.password);
         // Always run bcrypt so timing doesn't reveal whether the username exists

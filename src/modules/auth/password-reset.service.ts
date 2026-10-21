@@ -1,12 +1,7 @@
 import { BadRequestException, HttpException, HttpStatus, Injectable, type OnModuleInit } from "@nestjs/common";
 import { compare, hash } from "bcrypt";
 import { randomInt } from "crypto";
-import {
-    BCRYPT_ROUNDS,
-    RESET_OTP_MAX_ATTEMPTS,
-    RESET_OTP_RESEND_COOLDOWN_MS,
-    RESET_OTP_TTL_MS,
-} from "../../common/constants";
+import { BCRYPT_ROUNDS, RESET_OTP_MAX_ATTEMPTS, RESET_OTP_RESEND_COOLDOWN_MS, RESET_OTP_TTL_MS } from "../../common/constants";
 import { MailService } from "../../core/mail.service";
 import { PrismaService } from "../../core/prisma.service";
 import { NotificationService } from "../notification/notification.service";
@@ -91,9 +86,7 @@ export class PasswordResetService implements OnModuleInit {
                 data: { attempts: { increment: 1 } },
             });
             const left = RESET_OTP_MAX_ATTEMPTS - attempts;
-            throw new BadRequestException(
-                left > 0 ? `Incorrect code. ${left} attempt${left === 1 ? "" : "s"} left.` : INVALID_CODE
-            );
+            throw new BadRequestException(left > 0 ? `Incorrect code. ${left} attempt${left === 1 ? "" : "s"} left.` : INVALID_CODE);
         }
 
         const password = await hash(dto.password, BCRYPT_ROUNDS);

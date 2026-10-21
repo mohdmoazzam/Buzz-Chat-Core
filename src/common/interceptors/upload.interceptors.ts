@@ -12,7 +12,7 @@ const multerInterceptor = (handler: RequestHandler): Type<NestInterceptor> => {
         async intercept(context: ExecutionContext, next: CallHandler): Promise<Observable<unknown>> {
             const http = context.switchToHttp();
             await new Promise<void>((resolve, reject) =>
-                handler(http.getRequest(), http.getResponse(), (error?: unknown) => (error ? reject(error) : resolve()))
+                handler(http.getRequest(), http.getResponse(), (error?: unknown) => (error ? reject(error) : resolve())),
             );
             return next.handle();
         }

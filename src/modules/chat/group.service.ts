@@ -9,9 +9,7 @@ import { ALERT, REFETCH_CHATS } from "../../socket/events";
 import { fullName } from "../user/user.names";
 import { AVATAR_SELECT } from "../user/user.serializer";
 import { ChatAccess, groupAvatar, MEMBER_ORDER, memberIdsOf } from "./chat.access";
-import {
-    GROUP_DESCRIPTION_MAX, GROUP_MAX_MEMBERS, GROUP_MIN_MEMBERS, GROUP_NAME_MAX,
-} from "../../common/constants";
+import { GROUP_DESCRIPTION_MAX, GROUP_MAX_MEMBERS, GROUP_MIN_MEMBERS, GROUP_NAME_MAX } from "../../common/constants";
 import type { AddMembersBody, CreateGroupDto, RemoveMemberBody, UpdateGroupBody } from "./group.dto";
 
 const NAME_SELECT = { first_name: true, last_name: true } as const;
@@ -93,7 +91,10 @@ export class GroupService {
             description: chat.description,
             group_chat: chat.group_chat,
             member_count: chat._count.members,
-            avatar: groupAvatar(chat, chat.members.map((member) => member.user.avatar.url)),
+            avatar: groupAvatar(
+                chat,
+                chat.members.map((member) => member.user.avatar.url),
+            ),
         }));
     }
 
@@ -180,9 +181,7 @@ export class GroupService {
 
         const remaining = memberIdsOf(chat).filter((id) => id !== me);
         if (remaining.length < GROUP_MIN_MEMBERS) {
-            throw new BadRequestException(
-                `You can't leave: the group needs at least ${GROUP_MIN_MEMBERS} members. Delete it instead.`
-            );
+            throw new BadRequestException(`You can't leave: the group needs at least ${GROUP_MIN_MEMBERS} members. Delete it instead.`);
         }
 
         // Hand admin over to the longest-standing member

@@ -12,7 +12,10 @@ import { AdminService } from "./admin.service";
 @ApiTags("Admin")
 @Controller("admin")
 export class AdminAuthController {
-    constructor(private readonly admin: AdminService, private readonly tokens: TokenService) {}
+    constructor(
+        private readonly admin: AdminService,
+        private readonly tokens: TokenService,
+    ) {}
 
     @Post("verify")
     @HttpCode(200)

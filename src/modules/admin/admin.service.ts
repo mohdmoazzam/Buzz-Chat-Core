@@ -52,7 +52,10 @@ export class AdminService {
                 id: chat.id,
                 name: chat.name,
                 group_chat: chat.group_chat,
-                avatar: groupAvatar({ avatar: null }, members.map((member) => member.avatar.url)),
+                avatar: groupAvatar(
+                    { avatar: null },
+                    members.map((member) => member.avatar.url),
+                ),
                 members,
                 creator: chat.creator,
                 total_members: members.length,

@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../core/prisma.service';
-import { RealtimeService } from '../../core/realtime.service';
-import { MESSAGES_READ } from '../../socket/events';
+import { Injectable } from "@nestjs/common";
+import { PrismaService } from "../../core/prisma.service";
+import { RealtimeService } from "../../core/realtime.service";
+import { MESSAGES_READ } from "../../socket/events";
 
 export interface ReadReceipt {
     user_id: string;

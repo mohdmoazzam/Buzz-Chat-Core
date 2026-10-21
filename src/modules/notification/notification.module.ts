@@ -51,7 +51,7 @@ const redisConnection = (url: string) => {
                     removeOnComplete: { count: 1000 },
                     removeOnFail: { age: 7 * 24 * 60 * 60 },
                 },
-            }
+            },
         ),
     ],
     controllers: [NotificationController],

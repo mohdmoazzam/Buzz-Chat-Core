@@ -22,7 +22,10 @@ interface UseOptions {
 export class AssetsService {
     private readonly logger = new Logger(AssetsService.name);
 
-    constructor(private readonly prisma: PrismaService, private readonly storage: StorageService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly storage: StorageService,
+    ) {}
 
     /**
      * Uploads files to Cloudinary and records them. `uploadedBy` is null for uploads
@@ -35,18 +38,20 @@ export class AssetsService {
         const stored = await this.storage.upload(files);
         try {
             return await this.prisma.$transaction(
-                stored.map((file, index) => this.prisma.assets.create({
-                    data: {
-                        public_id: file.public_id,
-                        url: file.url,
-                        resource_type: file.resource_type,
-                        mime_type: files[index].mimetype,
-                        size_bytes: files[index].size,
-                        original_name: files[index].originalname,
-                        uploaded_by: uploadedBy,
-                    },
-                    select: ASSET_SELECT,
-                }))
+                stored.map((file, index) =>
+                    this.prisma.assets.create({
+                        data: {
+                            public_id: file.public_id,
+                            url: file.url,
+                            resource_type: file.resource_type,
+                            mime_type: files[index].mimetype,
+                            size_bytes: files[index].size,
+                            original_name: files[index].originalname,
+                            uploaded_by: uploadedBy,
+                        },
+                        select: ASSET_SELECT,
+                    }),
+                ),
             );
         } catch (error) {
             // Don't leave files on Cloudinary that nothing points to
@@ -69,10 +74,15 @@ export class AssetsService {
             },
         });
 
-        const usable = assets.length === new Set(assetIds).size && assets.every((asset) =>
-            asset.uploaded_by === ownerId &&
-            !asset._count.user_avatars && !asset._count.chat_avatars && !asset._count.message_attachments
-        );
+        const usable =
+            assets.length === new Set(assetIds).size &&
+            assets.every(
+                (asset) =>
+                    asset.uploaded_by === ownerId &&
+                    !asset._count.user_avatars &&
+                    !asset._count.chat_avatars &&
+                    !asset._count.message_attachments,
+            );
         if (!usable) {
             throw new BadRequestException("File not found. Please upload it again.");
         }

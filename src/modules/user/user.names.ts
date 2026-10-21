@@ -7,8 +7,7 @@ export interface PersonName {
 }
 
 /** A person's display name ("Ada Lovelace", or just "Ada"), used in alerts and chat names. */
-export const fullName = ({ first_name, last_name }: PersonName): string =>
-    [first_name, last_name].filter(Boolean).join(" ");
+export const fullName = ({ first_name, last_name }: PersonName): string => [first_name, last_name].filter(Boolean).join(" ");
 
 const asTrimmed = (value: unknown): string | undefined => (typeof value === "string" ? value.trim() : undefined);
 

@@ -19,12 +19,14 @@ export interface UpdateProfileBody {
     avatar_id?: unknown;
 }
 
-const asTrimmedString = (value: unknown): string | undefined =>
-    typeof value === "string" ? value.trim() : undefined;
+const asTrimmedString = (value: unknown): string | undefined => (typeof value === "string" ? value.trim() : undefined);
 
 @Injectable()
 export class UserService {
-    constructor(private readonly prisma: PrismaService, private readonly assets: AssetsService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly assets: AssetsService,
+    ) {}
 
     /** Usernames are citext, so "John" and "john" count as the same name. */
     async isUsernameTaken(username: string, excludeUserId?: string): Promise<boolean> {

@@ -10,17 +10,14 @@ export interface StoredFile {
     resource_type: string;
 }
 
-const toDataUri = (file: Express.Multer.File) =>
-    `data:${file.mimetype};base64,${file.buffer.toString("base64")}`;
+const toDataUri = (file: Express.Multer.File) => `data:${file.mimetype};base64,${file.buffer.toString("base64")}`;
 
 /** Cloudinary file storage, used by AssetsService. */
 @Injectable()
 export class StorageService {
     private readonly logger = new Logger(StorageService.name);
 
-    readonly isConfigured = Boolean(
-        config.cloudinary.cloudName && config.cloudinary.apiKey && config.cloudinary.apiSecret
-    );
+    readonly isConfigured = Boolean(config.cloudinary.cloudName && config.cloudinary.apiKey && config.cloudinary.apiSecret);
 
     constructor() {
         cloudinary.config({
@@ -38,7 +35,7 @@ export class StorageService {
         }
         try {
             const results = await Promise.all(
-                files.map((file) => cloudinary.uploader.upload(toDataUri(file), { resource_type: "auto", public_id: randomUUID() }))
+                files.map((file) => cloudinary.uploader.upload(toDataUri(file), { resource_type: "auto", public_id: randomUUID() })),
             );
             return results.map((res) => ({ public_id: res.public_id, url: res.secure_url, resource_type: res.resource_type }));
         } catch (error) {
@@ -55,9 +52,9 @@ export class StorageService {
         const ids = publicIds.filter((id): id is string => Boolean(id));
         if (!ids.length || !this.isConfigured) return;
         for (const resource_type of ["image", "video", "raw"] as const) {
-            cloudinary.api.delete_resources(ids, { resource_type }).catch((error: Error) =>
-                this.logger.error(`Cloudinary delete (${resource_type}) failed: ${error?.message ?? error}`)
-            );
+            cloudinary.api
+                .delete_resources(ids, { resource_type })
+                .catch((error: Error) => this.logger.error(`Cloudinary delete (${resource_type}) failed: ${error?.message ?? error}`));
         }
     }
 }
