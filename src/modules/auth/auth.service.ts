@@ -114,7 +114,7 @@ export class AuthService implements OnModuleInit {
             dto.username.length <= 50
                 ? await this.prisma.users.findUnique({
                       where: { username: dto.username },
-                      include: { avatar: AVATAR_SELECT },
+                      include: { avatar: AVATAR_SELECT, cover: AVATAR_SELECT },
                   })
                 : null;
 

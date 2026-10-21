@@ -5,7 +5,7 @@ import { AuthenticatedController } from "../../common/base.controller";
 import { PaginationQuery } from "../../common/swagger";
 import type { AuthUser } from "../user/user.serializer";
 import { ChatService } from "./chat.service";
-import { AddMembersDto, CreateGroupDto, UpdateGroupDto } from "./group.dto";
+import { AddMembersDto, CreateGroupDto, DisappearingDto, UpdateGroupDto } from "./group.dto";
 import { GroupService } from "./group.service";
 
 @ApiTags("Chats")
@@ -62,6 +62,13 @@ export class ChatController extends AuthenticatedController {
     async updateGroup(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() dto: UpdateGroupDto) {
         const chat = await this.groups.updateGroup(user.id, id, dto);
         return { success: true, message: "Group updated", chat };
+    }
+
+    // { seconds: 86400 | 604800 | 7776000 | null }
+    @Put(":id/disappearing")
+    async setDisappearing(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() dto: DisappearingDto) {
+        const result = await this.chats.setDisappearing(user.id, id, dto.seconds);
+        return { success: true, message: result.seconds ? "Disappearing messages on" : "Disappearing messages off", ...result };
     }
 
     @Delete(":id")

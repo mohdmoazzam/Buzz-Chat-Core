@@ -58,7 +58,7 @@ export class AccountDeletionService {
         await this.checkCode(userId, otp);
 
         const [user, memberships, ownAttachments, ownUploads] = await Promise.all([
-            this.prisma.users.findUniqueOrThrow({ where: { id: userId }, select: { avatar_id: true } }),
+            this.prisma.users.findUniqueOrThrow({ where: { id: userId }, select: { avatar_id: true, cover_id: true } }),
             this.prisma.chat_members.findMany({
                 where: { user_id: userId },
                 select: {
@@ -109,6 +109,7 @@ export class AccountDeletionService {
         // Only files nothing else uses any more are deleted (a forwarded copy keeps its file)
         this.assets.removeInBackground([
             user.avatar_id,
+            user.cover_id,
             ...deleted.filter((chat) => chat.group_chat).map((chat) => chat.avatar_id),
             ...ownAttachments.map((row) => row.asset_id),
             ...deletedChatFiles.map((row) => row.asset_id),

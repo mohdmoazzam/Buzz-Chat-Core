@@ -1,13 +1,17 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { InjectQueue } from "@nestjs/bullmq";
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from "@nestjs/common";
+import type { Queue } from "bullmq";
 import { MESSAGE_EDIT_WINDOW_MS, MESSAGES_PAGE_MAX, MESSAGES_PAGE_SIZE } from "../../common/constants";
 import { isValidId } from "../../common/utils/ids";
 import { CursorPagination } from "../../common/utils/pagination";
+import { Prisma } from "../../../prisma/generated/client";
 import { PrismaService } from "../../core/prisma.service";
 import { RealtimeService } from "../../core/realtime.service";
 import { MESSAGE_DELETED, MESSAGE_UPDATED, NEW_MESSAGE, NEW_MESSAGE_ALERT } from "../../socket/events";
 import { AssetsService } from "../assets/assets.service";
 import { ChatAccess, memberIdsOf, type ChatWithMemberIds } from "../chat/chat.access";
 import { ReadStateService } from "../chat/read-state.service";
+import { firstUrl, LINK_PREVIEW_QUEUE, type LinkPreviewJob } from "./link-preview/link-preview.fetcher";
 import { ATTACHMENTS_INCLUDE, MESSAGE_INCLUDE, REPLY_TO_INCLUDE, withAssets, type MessageSender } from "./message.serializer";
 
 interface CreateMessageInput {
@@ -20,17 +24,30 @@ interface CreateMessageInput {
     forwarded?: boolean;
     /** The message this one replies to (any id the client sent: checked here) */
     replyToId?: unknown;
+    /** The chat's disappearing-messages timer (chats.disappearing_seconds); null = the message stays */
+    disappearingSeconds?: number | null;
 }
 
 @Injectable()
 export class MessageService {
+    private readonly logger = new Logger(MessageService.name);
+
     constructor(
         private readonly prisma: PrismaService,
         private readonly access: ChatAccess,
         private readonly assets: AssetsService,
         private readonly realtime: RealtimeService,
         private readonly readState: ReadStateService,
+        @InjectQueue(LINK_PREVIEW_QUEUE) private readonly linkPreviews: Queue<LinkPreviewJob>,
     ) {}
+
+    /** Queues a link preview when the text has a link; best effort, never fails the message. */
+    private queueLinkPreview(messageId: string, content: string): void {
+        if (!firstUrl(content)) return;
+        this.linkPreviews
+            .add("preview", { message_id: messageId })
+            .catch((error: Error) => this.logger.warn(`Couldn't queue a link preview: ${error?.message ?? error}`));
+    }
 
     /**
      * Persists a message, bumps the chat's activity, and delivers it in real time.
@@ -45,6 +62,7 @@ export class MessageService {
         attachmentIds = [],
         forwarded = false,
         replyToId,
+        disappearingSeconds,
     }: CreateMessageInput) {
         const replyTo = await this.findReplyTarget(chatId, replyToId);
         // Persist first so the broadcast carries the real id and timestamp
@@ -56,6 +74,7 @@ export class MessageService {
                     sender_id: sender.id,
                     chat_id: chatId,
                     reply_to_id: replyTo,
+                    expires_at: disappearingSeconds ? new Date(Date.now() + disappearingSeconds * 1000) : null,
                     attachments: { create: attachmentIds.map((asset_id, position) => ({ asset_id, position })) },
                 },
                 include: { attachments: ATTACHMENTS_INCLUDE, reply_to: REPLY_TO_INCLUDE },
@@ -63,6 +82,7 @@ export class MessageService {
             this.access.touch(chatId),
         ]);
         const message = { ...withAssets(row), sender };
+        this.queueLinkPreview(row.id, content);
 
         this.realtime.emitToUsers(memberIds, NEW_MESSAGE, { chat_id: chatId, message });
         this.realtime.emitToUsers(
@@ -107,7 +127,14 @@ export class MessageService {
         const chat = await this.access.findForMember(chatId, sender.id);
         await this.assets.assertUsable(attachmentIds, sender.id);
 
-        return this.createAndDeliver({ chatId: chat.id, memberIds: memberIdsOf(chat), sender, attachmentIds, replyToId });
+        return this.createAndDeliver({
+            chatId: chat.id,
+            memberIds: memberIdsOf(chat),
+            sender,
+            attachmentIds,
+            replyToId,
+            disappearingSeconds: chat.disappearing_seconds,
+        });
     }
 
     /** Replaces the text of the user's own message, within MESSAGE_EDIT_WINDOW_MS of sending it. */
@@ -121,15 +148,19 @@ export class MessageService {
         if (Date.now() - message.created_at.getTime() > MESSAGE_EDIT_WINDOW_MS) {
             throw new BadRequestException(`Messages can only be edited within ${MESSAGE_EDIT_WINDOW_MS / 60_000} minutes of sending`);
         }
+        // A different link means a different card: clear the old one and fetch the new one
+        const linkChanged = firstUrl(content) !== firstUrl(message.content);
         const row = await this.prisma.messages.update({
             where: { id: message.id },
             data: {
                 content,
                 edited_at: new Date(),
+                ...(linkChanged ? { link_preview: Prisma.DbNull } : {}),
             },
             include: MESSAGE_INCLUDE,
         });
         const updated = withAssets(row);
+        if (linkChanged) this.queueLinkPreview(row.id, content);
 
         this.realtime.emitToUsers(memberIdsOf(chat), MESSAGE_UPDATED, { chat_id: chat.id, message: updated });
         return updated;
@@ -163,7 +194,7 @@ export class MessageService {
             this.prisma.message_attachments.deleteMany({ where: { message_id: message.id } }),
             this.prisma.messages.update({
                 where: { id: message.id },
-                data: { content: "", deleted_at: new Date(), reply_to_id: null },
+                data: { content: "", deleted_at: new Date(), reply_to_id: null, link_preview: Prisma.DbNull },
                 include: MESSAGE_INCLUDE,
             }),
         ]);
@@ -198,6 +229,7 @@ export class MessageService {
         // Shares the same asset records, so files aren't uploaded again
         for (const target of targets as ChatWithMemberIds[]) {
             await this.createAndDeliver({
+                disappearingSeconds: target.disappearing_seconds,
                 chatId: target.id,
                 memberIds: memberIdsOf(target),
                 sender,

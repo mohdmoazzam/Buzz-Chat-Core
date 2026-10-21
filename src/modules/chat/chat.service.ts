@@ -7,9 +7,9 @@ import { PrismaService } from "../../core/prisma.service";
 import { RealtimeService } from "../../core/realtime.service";
 import type { Prisma } from "../../../prisma/generated/client";
 import { AssetsService } from "../assets/assets.service";
-import { REFETCH_CHATS } from "../../socket/events";
+import { ALERT, DISAPPEARING_UPDATED, REFETCH_CHATS } from "../../socket/events";
 import { fullName } from "../user/user.names";
-import { AVATAR_SELECT, PERSON_SELECT } from "../user/user.serializer";
+import { AVATAR_SELECT, NAME_SELECT, PERSON_SELECT } from "../user/user.serializer";
 import { ChatAccess, groupAvatar, MEMBER_ORDER, memberIdsOf, type ChatWithMemberIds } from "./chat.access";
 import { ReadStateService } from "./read-state.service";
 
@@ -33,6 +33,12 @@ interface LastMessageRow {
     first_name: string;
     last_name: string;
 }
+
+/** "24 hours", "7 days", "90 days" */
+const disappearingLabel = (seconds: number) => {
+    const days = seconds / (24 * 60 * 60);
+    return days === 1 ? "24 hours" : `${days} days`;
+};
 
 const CHAT_LIST_PAGINATION = {
     orderFields: { updated_at: ["updated_at"], created_at: ["created_at"] },
@@ -157,6 +163,31 @@ export class ChatService {
             members: members.map(({ user, joined_at }) => ({ ...user, joined_at, is_admin: user.id === chat.creator_id })),
             pagination,
         };
+    }
+
+    /**
+     * Turns disappearing messages on (with a timer) or off. Any member of a 1:1 chat can change it;
+     * in a group, only the admin. It applies to messages sent from now on, like WhatsApp.
+     */
+    async setDisappearing(me: string, chatId: unknown, seconds: number | null) {
+        const chat = await this.access.findForMember(chatId, me);
+        if (chat.group_chat) this.access.assertGroupCreator(chat, me, "change disappearing messages");
+        if (chat.disappearing_seconds === seconds) return { seconds };
+
+        const [, actor] = await Promise.all([
+            this.prisma.chats.update({ where: { id: chat.id }, data: { disappearing_seconds: seconds }, select: { id: true } }),
+            this.prisma.users.findUnique({ where: { id: me }, select: NAME_SELECT }),
+        ]);
+        const memberIds = memberIdsOf(chat);
+        const who = actor ? fullName(actor) : "Someone";
+        this.realtime.emitToUsers(memberIds, ALERT, {
+            chat_id: chat.id,
+            message: seconds
+                ? `${who} turned on disappearing messages (${disappearingLabel(seconds)})`
+                : `${who} turned off disappearing messages`,
+        });
+        this.realtime.emitToUsers(memberIds, DISAPPEARING_UPDATED, { chat_id: chat.id, seconds });
+        return { seconds };
     }
 
     /** Deletes a 1:1 chat (any member) or a group (admin only), with its messages and files. */
