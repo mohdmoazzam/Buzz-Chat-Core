@@ -4,7 +4,7 @@ import type { Queue } from "bullmq";
 import { PrismaService } from "../../core/prisma.service";
 import { RealtimeService } from "../../core/realtime.service";
 import { MESSAGES_EXPIRED } from "../../socket/events";
-import { AssetsService } from "../assets/assets.service";
+import { AssetsService } from "../../modules/assets/assets.service";
 
 export const MESSAGE_CLEANUP_QUEUE = "message-cleanup";
 const EVERY_MS = 60 * 1000;

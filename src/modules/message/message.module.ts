@@ -5,7 +5,7 @@ import { ChatModule } from "../chat/chat.module";
 import { MessageController } from "./message.controller";
 import { LINK_PREVIEW_QUEUE } from "./link-preview/link-preview.fetcher";
 import { LinkPreviewProcessor } from "./link-preview/link-preview.processor";
-import { MESSAGE_CLEANUP_QUEUE, MessageCleanupProcessor } from "./message-cleanup.processor";
+import { MESSAGE_CLEANUP_QUEUE, MessageCleanupProcessor } from "../../common/processors/message-cleanup.processor";
 import { MessageService } from "./message.service";
 
 @Module({
