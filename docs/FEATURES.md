@@ -147,10 +147,12 @@ The client connects with the session token (handshake `auth.token` or the sessio
 A queue-based system with two channels, **email** and **in-app**, on Redis with BullMQ.
 
 ```
-Any service ──> NotificationService ──> Redis queues ──> workers
-                .email() / .inApp()     "email"          EmailProcessor: EJS template → Brevo
-                                        "in-app"         InAppProcessor: save row → socket push
+Any service ──> NotificationService ──────> Redis queues ──> workers
+                .queueNotification()        "email"          EmailProcessor: EJS template → Brevo
+                                            "in-app"         InAppProcessor: save row → socket push
 ```
+
+`queueNotification(type, { to, data, actorId })` looks up the type's channels in `NOTIFICATION_CHANNELS`, loads the recipients and actor in one query, builds each channel's payload (email template data, or in-app title/body) and queues one job per recipient per channel.
 
 **What sends notifications**
 
@@ -165,7 +167,7 @@ Any service ──> NotificationService ──> Redis queues ──> workers
 
 - Email jobs retry 5 times with exponential backoff (from 5 s) and are sent at most 10 per second. A job is deleted once sent, because it may contain a one-time code. Failed jobs are kept for 24 hours.
 - In-app jobs retry 3 times. Each carries its row id, so a retry never creates a duplicate.
-- Queuing has a 5-second timeout, so a Redis outage can't hang a request. In-app notifications are best effort; failing to queue an email returns a 503.
+- Queuing has a 5-second timeout, so a Redis outage can't hang a request. `queueNotification` throws a 503 when it can't queue; callers where it's best effort (welcome, friend and group notifications) catch it.
 - `NOTIFICATION_WORKERS=false` turns the workers off in a process, so they can run in a separate worker process.
 
 **Email templates** live in `templates/email/`:
@@ -183,8 +185,10 @@ Each template also gets `app` (`name`, `url`, `year`). In `html.ejs` use `<%= %>
 
 **Adding a notification**
 
-- *Email:* add a folder `templates/email/<name>/` with the three files, then an entry in `EmailTemplateData` (`src/modules/notification/notification.types.ts`). Sending with the wrong data won't compile.
-- *In-app:* add an entry in `InAppTemplateData` and its title/body renderer in `in-app.templates.ts`. The actor's name is filled in by the worker.
+1. Add the type to `NotificationData` (what the caller passes) and its channels to `NOTIFICATION_CHANNELS`, both in `src/modules/notification/notification.types.ts`.
+2. For each channel, add a builder in `notification.templates.ts`. The compiler requires one for every channel the type is on. A builder gets the recipient, the actor's name and the caller's data.
+   - *Email:* `EMAIL_BUILDERS` picks the template and its data. A new template also needs a folder `templates/email/<name>/` with the three files and an entry in `EmailTemplateData`.
+   - *In-app:* `IN_APP_BUILDERS` returns the title and body. The caller's data is stored in `notifications.data`.
 
 **In-app inbox (frontend)**: the bell badge counts pending friend requests plus unread notifications. The dropdown shows requests, then recent activity. Opening it marks the activity read, and clicking an item opens its chat.
 

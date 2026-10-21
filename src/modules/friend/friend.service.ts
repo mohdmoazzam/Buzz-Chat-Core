@@ -177,7 +177,9 @@ export class FriendService {
         ]);
 
         this.realtime.emitToUsers(members, REFETCH_CHATS);
-        await this.notifications.inApp([sender.id], "friend_request_accepted", { chat_id: chat.id }, me);
+        await this.notifications
+            .queueNotification("friend_request_accepted", { to: sender.id, data: { chat_id: chat.id }, actorId: me })
+            .catch(() => undefined);
         return sender.id;
     }
 

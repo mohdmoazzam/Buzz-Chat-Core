@@ -56,10 +56,9 @@ export class PasswordResetService implements OnModuleInit {
         });
 
         try {
-            await this.notifications.email(user.email, "password-reset", {
-                firstName: user.first_name,
-                code,
-                minutes: RESET_OTP_TTL_MS / 60_000,
+            await this.notifications.queueNotification("password_reset", {
+                to: user.id,
+                data: { code, minutes: RESET_OTP_TTL_MS / 60_000 },
             });
         } catch (error) {
             // Never queued, so let them retry straight away

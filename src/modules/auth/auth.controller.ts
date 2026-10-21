@@ -49,7 +49,6 @@ export class AuthController {
         return { success: true, message: "Password updated. You can log in now." };
     }
 
-    // Logout must work even with an expired session
     @Get("logout")
     logout(@Res({ passthrough: true }) res: Response) {
         res.cookie(AUTH_COOKIE, "", { ...cookieOptions, maxAge: 0 });
@@ -60,6 +59,11 @@ export class AuthController {
     private startSession(res: Response, user: AuthUser, message: string) {
         const token = this.tokens.signUser(user.id);
         res.cookie(AUTH_COOKIE, token, cookieOptions);
-        return { success: true, message, access_token: token, user };
+        return {
+            success: true,
+            message,
+            access_token: token,
+            user,
+        };
     }
 }

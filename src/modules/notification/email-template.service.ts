@@ -36,11 +36,14 @@ export class EmailTemplateService implements OnModuleInit {
 
         const [subject, content, text] = await Promise.all([part("subject"), part("html"), part("text")]);
         const html = await this.renderFile(LAYOUT, { ...locals, subject: subject.trim(), content });
-        return { subject: subject.trim(), html, text: text.trim() };
+        return {
+            subject: subject.trim(),
+            html,
+            text: text.trim(),
+        };
     }
 
     private renderFile(path: string, locals: Record<string, unknown>): Promise<string> {
-        // Compiled templates are cached in production; in development edits show up immediately
         return renderFile(path, locals, { cache: config.isProduction });
     }
 }

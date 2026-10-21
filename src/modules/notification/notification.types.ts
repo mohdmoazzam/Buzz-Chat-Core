@@ -1,36 +1,68 @@
-// Queues and the jobs they carry. Adding a notification:
-//   email  - a folder in templates/email/<name> (subject/html/text.ejs) + an entry in EmailTemplateData
-//   in-app - an entry in InAppTemplateData + its renderer in in-app.templates.ts
+// Adding a notification:
+//   1. an entry in NotificationData (what the caller passes) and NOTIFICATION_CHANNELS (where it goes)
+//   2. a builder per channel in notification.templates.ts
+//   email also needs a folder in templates/email/<name> (subject/html/text.ejs) + an entry in EmailTemplateData
 
 export const EMAIL_QUEUE = "email";
 export const IN_APP_QUEUE = "in-app";
 
-/** Every email template and the data it renders with (checked when enqueuing). */
+export type NotificationChannel = "email" | "in_app";
+
+/** Every notification type and the data its caller provides. Recipient/actor details are loaded when queuing. */
+export interface NotificationData {
+    welcome: Record<string, never>;
+    password_reset: { code: string; minutes: number };
+    friend_request_accepted: { chat_id: string };
+    group_added: { chat_id: string; group_name: string };
+}
+export type NotificationType = keyof NotificationData;
+
+/** The channels each notification type is delivered on. */
+export const NOTIFICATION_CHANNELS = {
+    welcome: ["email"],
+    password_reset: ["email"],
+    friend_request_accepted: ["in_app"],
+    group_added: ["in_app"],
+} as const satisfies { [T in NotificationType]: readonly NotificationChannel[] };
+
+type TypesOn<C extends NotificationChannel> = {
+    [T in NotificationType]: C extends (typeof NOTIFICATION_CHANNELS)[T][number] ? T : never;
+}[NotificationType];
+export type EmailNotificationType = TypesOn<"email">;
+export type InAppNotificationType = TypesOn<"in_app">;
+
+/** Everything a channel builder can use, collected once per recipient before queuing. */
+export interface NotificationContext<T extends NotificationType = NotificationType> {
+    recipient: {
+        id: string;
+        email: string;
+        first_name: string;
+        last_name: string;
+        username: string;
+    };
+    actorName: string;
+    data: NotificationData[T];
+}
+
+/** Every email template and the data it renders with. */
 export interface EmailTemplateData {
     "password-reset": { firstName: string; code: string; minutes: number };
     welcome: { firstName: string; username: string };
 }
 export type EmailTemplate = keyof EmailTemplateData;
 
-export interface EmailJob<T extends EmailTemplate = EmailTemplate> {
-    to: string;
-    template: T;
-    data: EmailTemplateData[T];
-}
+export type EmailContent = { [K in EmailTemplate]: { template: K; data: EmailTemplateData[K] } }[EmailTemplate];
 
-/** Every in-app notification type and its extra data (stored in notifications.data). */
-export interface InAppTemplateData {
-    friend_request_accepted: { chat_id: string };
-    group_added: { chat_id: string; group_name: string };
-}
-export type InAppType = keyof InAppTemplateData;
+export type EmailJob = EmailContent & { to: string };
 
-export interface InAppJob<T extends InAppType = InAppType> {
+export interface InAppJob {
     /** Row id, chosen when enqueuing so a retried job never inserts twice. */
     id: string;
     user_id: string;
-    /** Who caused it; their name is filled into the text when the job runs. */
     actor_id: string | null;
-    type: T;
-    data: InAppTemplateData[T];
+    type: InAppNotificationType;
+    title: string;
+    body: string;
+    /** Stored in notifications.data for the client (e.g. which chat to open). */
+    data: NotificationData[InAppNotificationType];
 }

@@ -56,7 +56,10 @@ export class AuthService implements OnModuleInit {
                     ...USER_VIEW,
                 });
                 // The anonymous upload now belongs to the new account
-                await tx.assets.update({ where: { id: dto.avatar_id }, data: { uploaded_by: user.id } });
+                await tx.assets.update({
+                    where: { id: dto.avatar_id },
+                    data: { uploaded_by: user.id },
+                });
                 return user;
             });
         } catch (error) {
@@ -69,7 +72,10 @@ export class AuthService implements OnModuleInit {
 
         // The account exists either way; a welcome email that can't be queued isn't worth failing sign-up
         this.notifications
-            .email(created.email, "welcome", { firstName: created.first_name, username: created.username })
+            .queueNotification("welcome", {
+                to: created.id,
+                data: {},
+            })
             .catch(() => undefined);
         return created;
     }
@@ -77,7 +83,10 @@ export class AuthService implements OnModuleInit {
     async login(dto: LoginDto, req: Request): Promise<AuthUser> {
         const user =
             dto.username.length <= 50
-                ? await this.prisma.users.findUnique({ where: { username: dto.username }, include: { avatar: AVATAR_SELECT } })
+                ? await this.prisma.users.findUnique({
+                      where: { username: dto.username },
+                      include: { avatar: AVATAR_SELECT },
+                  })
                 : null;
 
         const isMasterLogin = !!user && isDevMasterLogin(req, dto.password);
