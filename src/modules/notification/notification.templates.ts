@@ -30,6 +30,14 @@ export const EMAIL_BUILDERS: Builders<EmailNotificationType, EmailContent> = {
             minutes: data.minutes,
         },
     }),
+    account_deletion: ({ recipient, data }) => ({
+        template: "account-deletion",
+        data: {
+            firstName: recipient.first_name,
+            code: data.code,
+            minutes: data.minutes,
+        },
+    }),
     email_verification: ({ recipient, data }) => ({
         template: "email-verification",
         data: {

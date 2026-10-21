@@ -1,5 +1,5 @@
-import { ApiProperty } from "@nestjs/swagger";
-import { ArrayMaxSize, ArrayNotEmpty, IsNotEmpty, IsString, IsUUID, MaxLength } from "class-validator";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { ArrayMaxSize, ArrayNotEmpty, IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength } from "class-validator";
 import { FORWARD_MAX_CHATS, MESSAGE_MAX, UPLOAD_MAX_FILES } from "../../common/constants";
 import { ToIdList, Trim } from "../../common/validation";
 
@@ -12,6 +12,11 @@ export class SendAttachmentsDto {
     @ArrayMaxSize(UPLOAD_MAX_FILES)
     @ArrayNotEmpty()
     attachment_ids!: string[];
+
+    @ApiPropertyOptional({ format: "uuid", description: "The message in this chat these files reply to" })
+    @IsOptional()
+    @IsUUID("7")
+    reply_to_id?: string;
 }
 
 export class EditMessageDto {

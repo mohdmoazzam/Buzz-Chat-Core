@@ -1,4 +1,4 @@
-import { Logger } from "@nestjs/common";
+import { BadRequestException, Logger } from "@nestjs/common";
 import {
     ConnectedSocket,
     MessageBody,
@@ -74,7 +74,10 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     }
 
     @SubscribeMessage(NEW_MESSAGE)
-    async onNewMessage(@ConnectedSocket() socket: Socket, @MessageBody() body?: { chat_id?: unknown; message?: unknown }): Promise<Ack> {
+    async onNewMessage(
+        @ConnectedSocket() socket: Socket,
+        @MessageBody() body?: { chat_id?: unknown; message?: unknown; reply_to_id?: unknown },
+    ): Promise<Ack> {
         const user = userOf(socket);
         const content = typeof body?.message === "string" ? body.message.trim() : "";
         if (!content) return { ok: false, error: "Message is empty" };
@@ -92,9 +95,12 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
                 memberIds: memberIdsOf(chat),
                 sender: user,
                 content,
+                replyToId: body?.reply_to_id,
             });
             return { ok: true, message_id: saved.id };
         } catch (error) {
+            // A reply to a message that's gone (deleted or from another chat) is the user's to fix, not a server error
+            if (error instanceof BadRequestException) return { ok: false, error: error.message };
             this.logger.error(`Failed to send message: ${(error as Error).message}`);
             return { ok: false, error: "Something went wrong. Please try again." };
         }

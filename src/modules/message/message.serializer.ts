@@ -7,11 +7,50 @@ export type MessageSender = UserName;
 /** Attachments in the order they were sent, as asset records. */
 export const ATTACHMENTS_INCLUDE = { orderBy: { position: "asc" }, select: { asset: { select: ASSET_SELECT } } } as const;
 
-/** A message as sent to clients: with its sender and attachments. */
-export const MESSAGE_INCLUDE = { sender: { select: NAME_SELECT }, attachments: ATTACHMENTS_INCLUDE } as const;
+/** Longest snippet of the original shown in a reply's quote. */
+const REPLY_SNIPPET_MAX = 200;
 
-/** Flattens message_attachments rows into the list of attached assets. */
-export const withAssets = <T extends { attachments: { asset: unknown }[] }>(message: T) => ({
+/** The message a reply quotes: enough for the preview (who, a snippet, its first file's type). */
+export const REPLY_TO_INCLUDE = {
+    select: {
+        id: true,
+        content: true,
+        deleted_at: true,
+        sender: { select: NAME_SELECT },
+        attachments: {
+            orderBy: { position: "asc" },
+            take: 1,
+            select: { asset: { select: { url: true, mime_type: true, resource_type: true } } },
+        },
+    },
+} as const;
+
+/** A message as sent to clients: with its sender, attachments and the message it replies to. */
+export const MESSAGE_INCLUDE = { sender: { select: NAME_SELECT }, attachments: ATTACHMENTS_INCLUDE, reply_to: REPLY_TO_INCLUDE } as const;
+
+interface ReplyToRow {
+    id: string;
+    content: string;
+    deleted_at: Date | null;
+    sender: UserName;
+    attachments: { asset: { url: string; mime_type: string; resource_type: string } }[];
+}
+
+/** The quoted message for clients. A deleted original shows only that it was deleted, never its old text. */
+const replyPreview = (row: ReplyToRow | null | undefined) =>
+    row
+        ? {
+              id: row.id,
+              sender: row.sender,
+              deleted: !!row.deleted_at,
+              content: row.deleted_at ? "" : row.content.slice(0, REPLY_SNIPPET_MAX),
+              attachment: row.deleted_at ? null : (row.attachments[0]?.asset ?? null),
+          }
+        : null;
+
+/** Flattens message_attachments rows into the list of attached assets, and shapes the reply preview. */
+export const withAssets = <T extends { attachments: { asset: unknown }[]; reply_to?: ReplyToRow | null }>(message: T) => ({
     ...message,
     attachments: message.attachments.map((attachment) => attachment.asset),
+    reply_to: replyPreview(message.reply_to),
 });

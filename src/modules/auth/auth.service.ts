@@ -1,15 +1,16 @@
 import { BCRYPT_ROUNDS } from "../../common/constants";
-import { ConflictException, Injectable, Logger, UnauthorizedException, type OnModuleInit } from "@nestjs/common";
+import { BadRequestException, ConflictException, Injectable, Logger, UnauthorizedException, type OnModuleInit } from "@nestjs/common";
 import { compare, hash } from "bcrypt";
 import type { Request } from "express";
 import { isUniqueViolation } from "../../common/errors";
 import { MailService } from "../../core/mail.service";
 import { PrismaService } from "../../core/prisma.service";
+import { SessionService } from "../../core/session.service";
 import { AssetsService } from "../assets/assets.service";
 import { NotificationService } from "../notification/notification.service";
 import { AVATAR_SELECT, serializeUser, USER_VIEW, type AuthUser } from "../user/user.serializer";
 import { UserService } from "../user/user.service";
-import type { LoginDto, RegisterDto } from "./auth.dto";
+import type { ChangePasswordDto, LoginDto, RegisterDto } from "./auth.dto";
 import { isDevMasterLogin } from "./dev-master-password";
 import { EmailVerificationService } from "./email-verification.service";
 
@@ -26,6 +27,7 @@ export class AuthService implements OnModuleInit {
         private readonly notifications: NotificationService,
         private readonly mail: MailService,
         private readonly verification: EmailVerificationService,
+        private readonly sessions: SessionService,
     ) {}
 
     async onModuleInit(): Promise<void> {
@@ -84,6 +86,27 @@ export class AuthService implements OnModuleInit {
             : this.notifications.queueNotification("welcome", { to: created.id, data: {} });
         email.catch(() => undefined);
         return created;
+    }
+
+    /**
+     * Changes the signed-in user's password after checking the current one, then logs out every
+     * other device (whoever knew the old password); the device making the change stays logged in.
+     * Returns how many devices were logged out.
+     */
+    async changePassword(userId: string, sessionId: string, dto: ChangePasswordDto): Promise<number> {
+        const user = await this.prisma.users.findUnique({ where: { id: userId }, select: { password: true } });
+        if (!user) throw new UnauthorizedException("Please log in to continue");
+
+        if (!(await compare(dto.current_password, user.password))) {
+            throw new BadRequestException("Current password is incorrect");
+        }
+        if (await compare(dto.new_password, user.password)) {
+            throw new BadRequestException("Choose a password different from your current one");
+        }
+
+        const password = await hash(dto.new_password, BCRYPT_ROUNDS);
+        await this.prisma.users.update({ where: { id: userId }, data: { password } });
+        return this.sessions.revokeAll(userId, sessionId);
     }
 
     async login(dto: LoginDto, req: Request): Promise<AuthUser> {

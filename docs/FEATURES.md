@@ -29,6 +29,9 @@ All REST routes are under `/api/v1`. Interactive API docs are at `/api/docs` (Sw
 | **Log in** | Username + password. Returns a session token as an httpOnly cookie *and* in the body (for the `Authorization: Bearer` header). Sessions last 15 days. |
 | **Log out** | Clears the cookie; works even with an expired session. |
 | **Forgot password** | Enter your email → a 6-digit code is emailed (template `password-reset`) → enter the code and a new password. |
+| **Sign in with Google** | Google's button on the login and sign-up screens (Google Identity Services). The backend verifies the ID token for `GOOGLE_CLIENT_ID`, then logs in the account with that Google id, or links Google to the account with the same (Google-verified) email, or creates one: name from Google, username from the email (made unique), Google photo copied to Cloudinary, email already verified. Turned off when `GOOGLE_CLIENT_ID` / `VITE_GOOGLE_CLIENT_ID` are empty. |
+| **Change password** | Settings → Password while logged in: current password, then a new one (8–72 characters, different from the current). Every other device is logged out; this one stays logged in. |
+| **Delete my account** | Settings → Delete account: a 6-digit code is emailed (template `account-deletion`, same rules as other codes), entering it deletes the account. 1:1 chats are deleted whole; groups the user admins pass to the longest-standing member (deleted if fewer than 2 would remain); their messages, requests, notifications and sessions go too, and files nothing else uses are removed from storage. Every device is logged out and contacts' chat lists refresh. |
 | **Case-insensitive identity** | Usernames and emails are `citext`: `John` and `john` are the same account. |
 
 **Code rules (forgot password and email verification)**
@@ -42,6 +45,7 @@ All REST routes are under `/api/v1`. Interactive API docs are at `/api/docs` (Sw
 |---|---|
 | `POST /user/register` | Create an account |
 | `POST /user/login` | Log in |
+| `POST /user/google` | `{ credential }` (Google ID token): log in or sign up with Google |
 | `POST /user/logout` | Log out (ends this device's session) |
 | `GET /user/sessions` | Logged-in devices; this one has `current: true` |
 | `DELETE /user/sessions/:id` | Log out one device |
@@ -49,6 +53,9 @@ All REST routes are under `/api/v1`. Interactive API docs are at `/api/docs` (Sw
 | `DELETE /user/sessions` | Log out everywhere, this device included |
 | `POST /user/forgot-password` | `{ email }`: send a reset code |
 | `POST /user/reset-password` | `{ email, otp, password }`: set a new password |
+| `POST /user/delete-account/code` | Email the account deletion code |
+| `POST /user/delete-account` | `{ otp }`: delete the account for good |
+| `PUT /user/password` | `{ current_password, new_password }`: change it while logged in; logs out other devices |
 | `POST /user/verify-email` | `{ otp }`: verify the signed-in account's email; returns the updated user |
 | `POST /user/verify-email/resend` | Email a new verification code |
 
@@ -220,7 +227,7 @@ Each template also gets `app` (`name`, `url`, `year`). In `html.ejs` use `<%= %>
    - *Email:* `EMAIL_BUILDERS` picks the template and its data. A new template also needs a folder `templates/email/<name>/` with the three files and an entry in `EmailTemplateData`.
    - *In-app:* `IN_APP_BUILDERS` returns the title and body. The caller's data is stored in `notifications.data`.
 
-**In-app inbox (frontend)**: the bell badge counts pending friend requests plus unread notifications. The dropdown shows requests, then recent activity. Opening it marks the activity read, and clicking an item opens its chat.
+**In-app inbox (frontend)**: the bell badge counts pending friend requests plus unread notifications. The bell opens the Notifications page (`/notifications`, full screen on phones): friend requests, then activity split into New (unread when opened) and Earlier, with "Show more" for older pages. Opening it marks the activity read, clicking an item opens its chat, ✕ deletes one notification and Clear all deletes them all.
 
 | Route | Purpose |
 |---|---|
@@ -229,6 +236,7 @@ Each template also gets `app` (`name`, `url`, `year`). In `html.ejs` use `<%= %>
 | `PATCH /notifications/read-all` | Mark everything read |
 | `PATCH /notifications/:id/read` | Mark one read |
 | `DELETE /notifications/:id` | Delete one |
+| `DELETE /notifications` | Delete all (Clear all) |
 
 ## Admin panel
 
@@ -246,7 +254,7 @@ At `/admin` on the frontend. Unlocked with `ADMIN_SECRET_KEY`; the admin session
 
 | Area | Protection |
 |---|---|
-| **Rate limits** | 300 requests/min per IP overall. Stricter limits: sign-up 10/hour, login 20/15 min, forgot password 5/15 min, reset password 10/15 min, verify email 10/15 min, resend verification code 5/15 min, uploads 60/15 min, admin login 10/15 min. |
+| **Rate limits** | 300 requests/min per IP overall. Stricter limits: sign-up 10/hour, login 20/15 min, Google sign-in 20/15 min, change password 10/15 min, forgot password 5/15 min, reset password 10/15 min, verify email 10/15 min, resend verification code 5/15 min, uploads 60/15 min, admin login 10/15 min. |
 | **Passwords** | bcrypt. Login takes the same time whether or not the username exists. |
 | **Access checks** | Every chat, message and socket action checks membership on the server. Ids and member lists sent by the client are never trusted. |
 | **Input** | All request bodies are validated, with readable error messages; JSON bodies are capped at 100 KB. |
@@ -271,6 +279,7 @@ At `/admin` on the frontend. Unlocked with `ADMIN_SECRET_KEY`; the admin session
 | `JWT_SECRET` | Yes in production | Signs session tokens |
 | `REDIS_URL` | Yes | Notification queues |
 | `BREVO_API_KEY`, `BREVO_SENDER_EMAIL` | For email | Brevo API key and a verified sender |
+| `GOOGLE_CLIENT_ID` | For Google sign-in | OAuth "Web application" client id; the frontend needs the same value as `VITE_GOOGLE_CLIENT_ID` |
 | `BREVO_SENDER_NAME` | No | Default `BuzzChat` |
 | `APP_URL` | No | Links in emails; default `https://buzzchatapp.vercel.app` |
 | `NOTIFICATION_WORKERS` | No | `false` to only queue jobs in this process |

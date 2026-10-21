@@ -50,6 +50,8 @@ CREATE TABLE users (
     avatar_id        uuid           NOT NULL REFERENCES assets (id) ON DELETE RESTRICT,
     -- null until the sign-up code is entered; unverified accounts can only verify or log out
     email_verified_at timestamptz(6),
+    -- Google's account id ("sub") once the user signs in with Google; null otherwise
+    google_id        text           UNIQUE,
     created_at       timestamptz(6) NOT NULL DEFAULT now(),
     updated_at       timestamptz(6) NOT NULL DEFAULT now()
 );
@@ -94,6 +96,8 @@ CREATE TABLE messages (
     content     text           NOT NULL DEFAULT '',
     -- Copied from another chat (shows a "Forwarded" label)
     forwarded   boolean        NOT NULL DEFAULT false,
+    -- The message this one replies to (same chat); SET NULL keeps the reply if that row goes
+    reply_to_id uuid           REFERENCES messages (id) ON DELETE SET NULL,
     -- Set when the sender edits the text
     edited_at   timestamptz(6),
     -- Set when the sender deletes it for everyone; the row stays as a placeholder
@@ -105,6 +109,8 @@ CREATE TABLE messages (
 CREATE INDEX messages_chat_id_created_at_idx ON messages (chat_id, created_at DESC);
 -- Admin stats and message list
 CREATE INDEX messages_created_at_idx ON messages (created_at);
+-- A message's replies (for the SET NULL above)
+CREATE INDEX messages_reply_to_id_idx ON messages (reply_to_id);
 
 -- Files attached to a message, in the order they were sent
 CREATE TABLE message_attachments (
@@ -142,6 +148,15 @@ CREATE TABLE password_resets (
 
 -- Email verification on sign-up: same shape as password_resets, one pending code per user
 CREATE TABLE email_verifications (
+    user_id    uuid           PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
+    code_hash  text           NOT NULL,
+    attempts   integer        NOT NULL DEFAULT 0,
+    expires_at timestamptz(6) NOT NULL,
+    created_at timestamptz(6) NOT NULL DEFAULT now()
+);
+
+-- Delete my account: the emailed confirmation code, same shape as password_resets
+CREATE TABLE account_deletions (
     user_id    uuid           PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
     code_hash  text           NOT NULL,
     attempts   integer        NOT NULL DEFAULT 0,

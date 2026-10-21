@@ -22,6 +22,7 @@ model users {
   password          String
   avatar_id         String            @db.Uuid
   email_verified_at DateTime?         @db.Timestamptz(6)
+  google_id         String?           @unique
   created_at        DateTime          @default(now()) @db.Timestamptz(6)
   updated_at        DateTime          @default(now()) @updatedAt @db.Timestamptz(6)
   uploaded_assets   assets[]          @relation("assets_uploaded_byTousers")
@@ -32,6 +33,7 @@ model users {
   messages          messages[]
   password_reset    password_resets?
   email_verification email_verifications?
+  account_deletion  account_deletions?
   sessions          sessions[]
   notifications     notifications[]   @relation("notifications_user")
   caused_notifications notifications[] @relation("notifications_actor")
@@ -88,6 +90,15 @@ model email_verifications {
   user       users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 
+model account_deletions {
+  user_id    String   @id @db.Uuid
+  code_hash  String
+  attempts   Int      @default(0)
+  expires_at DateTime @db.Timestamptz(6)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  user       users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
 model chats {
   id          String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
   name        String
@@ -126,12 +137,16 @@ model messages {
   forwarded   Boolean               @default(false)
   edited_at   DateTime?             @db.Timestamptz(6)
   deleted_at  DateTime?             @db.Timestamptz(6)
+  reply_to_id String?               @db.Uuid
   attachments message_attachments[]
   chat        chats                 @relation(fields: [chat_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   sender      users                 @relation(fields: [sender_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  reply_to    messages?             @relation("message_replies", fields: [reply_to_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  replies     messages[]            @relation("message_replies")
 
   @@index([chat_id, created_at(sort: Desc)])
   @@index([created_at])
+  @@index([reply_to_id])
 }
 
 model friend_requests {

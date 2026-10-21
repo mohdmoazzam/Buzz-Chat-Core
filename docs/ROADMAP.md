@@ -54,11 +54,8 @@ Done: read receipts and server-side unread counts (see FEATURES.md, Chats); emai
 
 | Feature | Size | Notes |
 |---|---|---|
-| Change password while logged in | S | Reuses the bcrypt and validation code. |
 | Log out everywhere / token versioning | S | `token_version` on `users`, checked on every request, bumped on password reset. |
-| Sign in with Google | M | Passport is already set up; add `passport-google-oauth20`. |
 | Active sessions list | M | A `sessions` table per device, with revoke. |
-| Delete my account | M | Remove the user, their files and chats; confirm by email. |
 
 ## Admin and safety
 

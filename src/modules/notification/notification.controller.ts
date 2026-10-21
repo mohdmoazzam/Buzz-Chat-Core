@@ -38,6 +38,13 @@ export class NotificationController extends AuthenticatedController {
         return { success: true, message: "Notification marked as read" };
     }
 
+    // Clear all; :id below deletes one
+    @Delete()
+    async removeAll(@CurrentUser() user: AuthUser) {
+        const deleted = await this.inbox.removeAll(user.id);
+        return { success: true, message: deleted ? "Notifications cleared" : "No notifications to clear", deleted };
+    }
+
     @Delete(":id")
     async remove(@CurrentUser() user: AuthUser, @Param("id") id: string) {
         await this.inbox.remove(user.id, id);
