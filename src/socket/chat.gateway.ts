@@ -11,8 +11,9 @@ import { PrismaService } from "../core/prisma.service";
 import { RealtimeService, userRoom } from "../core/realtime.service";
 import { TokenService } from "../core/token.service";
 import { ChatAccess, memberIdsOf } from "../modules/chat/chat.access";
+import { ReadStateService } from "../modules/chat/read-state.service";
 import { MessageService, type MessageSender } from "../modules/message/message.service";
-import { CHAT_JOINED, CHAT_LEAVED, NEW_MESSAGE, START_TYPING, STOP_TYPING } from "./events";
+import { CHAT_JOINED, CHAT_LEAVED, CHAT_READ, NEW_MESSAGE, START_TYPING, STOP_TYPING } from "./events";
 import { PresenceService } from "./presence.service";
 
 type SocketUser = MessageSender;
@@ -42,6 +43,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         private readonly presence: PresenceService,
         private readonly access: ChatAccess,
         private readonly messages: MessageService,
+        private readonly readState: ReadStateService,
     ) {}
 
     afterInit(server: Server): void {
@@ -114,6 +116,15 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
     @SubscribeMessage(CHAT_LEAVED)
     onChatLeaved(): void {}
+
+    @SubscribeMessage(CHAT_READ)
+    async onChatRead(@ConnectedSocket() socket: Socket, @MessageBody() body?: { chat_id?: unknown }): Promise<void> {
+        await this.safely(async () => {
+            const { id: userId } = userOf(socket);
+            const chat = await this.access.loadForMember(body?.chat_id, userId);
+            if (chat) await this.readState.markRead(chat.id, userId, memberIdsOf(chat));
+        });
+    }
 
     /** Accepts the token from the handshake auth payload or the session cookie. */
     private async authenticate(socket: Socket): Promise<void> {

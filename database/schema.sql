@@ -77,6 +77,9 @@ CREATE TABLE chat_members (
     chat_id   uuid           NOT NULL REFERENCES chats (id) ON DELETE CASCADE,
     user_id   uuid           NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     joined_at timestamptz(6) NOT NULL DEFAULT now(),
+    -- Read everything up to here (a message's created_at): unread counts and read receipts.
+    -- Starts at join time, so new members don't inherit the backlog as unread.
+    last_read_at timestamptz(6) NOT NULL DEFAULT now(),
     PRIMARY KEY (chat_id, user_id)
 );
 -- Listing a user's chats

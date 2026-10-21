@@ -8,6 +8,7 @@ import { RealtimeService } from "../../core/realtime.service";
 import { MESSAGE_DELETED, MESSAGE_UPDATED, NEW_MESSAGE, NEW_MESSAGE_ALERT } from "../../socket/events";
 import { ASSET_SELECT, AssetsService } from "../assets/assets.service";
 import { ChatAccess, memberIdsOf, type ChatWithMemberIds } from "../chat/chat.access";
+import { ReadStateService } from "../chat/read-state.service";
 
 /** The sender as embedded in messages: id and name columns. */
 export type MessageSender = { id: string; first_name: string; last_name: string };
@@ -43,6 +44,7 @@ export class MessageService {
         private readonly access: ChatAccess,
         private readonly assets: AssetsService,
         private readonly realtime: RealtimeService,
+        private readonly readState: ReadStateService,
     ) {}
 
     /**
@@ -69,6 +71,8 @@ export class MessageService {
 
         this.realtime.emitToUsers(memberIds, NEW_MESSAGE, { chat_id: chatId, message });
         this.realtime.emitToUsers(memberIds.filter((id) => id !== sender.id), NEW_MESSAGE_ALERT, { chat_id: chatId });
+        // Replying means you've read the chat; the message is already delivered, so this can't fail it
+        await this.readState.markSent(chatId, sender.id, row.created_at, memberIds).catch(() => undefined);
         return message;
     }
 
@@ -77,7 +81,7 @@ export class MessageService {
         const chat = await this.access.findForMember(chatId, me);
         const page = Math.max(1, Number.parseInt(String(rawPage), 10) || 1);
 
-        const [messages, totalMessages] = await Promise.all([
+        const [messages, totalMessages, receipts] = await Promise.all([
             this.prisma.messages.findMany({
                 where: { chat_id: chat.id },
                 orderBy: [{ created_at: "desc" }, { id: "desc" }],
@@ -86,11 +90,14 @@ export class MessageService {
                 include: MESSAGE_INCLUDE,
             }),
             this.prisma.messages.count({ where: { chat_id: chat.id } }),
+            this.readState.receipts(chat.id, me),
         ]);
 
         return {
             messages: messages.reverse().map(withAssets),
             total_pages: Math.ceil(totalMessages / MESSAGES_PAGE_SIZE),
+            // How far the other members have read: the ticks on your own messages
+            read_receipts: receipts,
         };
     }
 

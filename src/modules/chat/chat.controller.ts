@@ -38,7 +38,19 @@ export class ChatController extends AuthenticatedController {
         return { success: true, groups: await this.groups.getMyGroups(user.id) };
     }
 
+    // Unread messages across all chats (tab title)
+    @Get('unread-count')
+    async unreadCount(@CurrentUser() user: AuthUser) {
+        return { success: true, unread_count: await this.chats.totalUnread(user.id) };
+    }
+
     // Must stay after the static paths above: "/:id" would otherwise match them
+
+    // Same as the CHAT_READ socket event, for clients without a socket
+    @Post(':id/read')
+    async markRead(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+        return { success: true, read_at: await this.chats.markRead(user.id, id) };
+    }
 
     @Get(':id')
     @ApiQuery({ name: 'populate', required: false, type: Boolean, description: 'Include member profiles' })

@@ -5,6 +5,10 @@ export const REFETCH_CHATS = "REFETCH_CHATS";
 export const NEW_ATTACHMENT = "NEW_ATTACHMENT";
 export const NEW_MESSAGE_ALERT = "NEW_MESSAGE_ALERT";
 
+// Client -> server: "I've seen this chat"; server -> members: { chat_id, user_id, read_at }
+export const CHAT_READ = "CHAT_READ";
+export const MESSAGES_READ = "MESSAGES_READ";
+
 export const NEW_REQUEST = "NEW_REQUEST";
 export const NEW_NOTIFICATION = "NEW_NOTIFICATION";
 export const NEW_MESSAGE = "NEW_MESSAGE";

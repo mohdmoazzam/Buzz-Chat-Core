@@ -10,6 +10,7 @@ import { REFETCH_CHATS } from "../../socket/events";
 import { fullName } from "../user/user.names";
 import { AVATAR_SELECT, PERSON_SELECT } from "../user/user.serializer";
 import { ChatAccess, groupAvatar, MEMBER_ORDER, memberIdsOf, type ChatWithMemberIds } from "./chat.access";
+import { ReadStateService } from "./read-state.service";
 
 interface LastMessagePreview {
     id: string;
@@ -53,6 +54,7 @@ export class ChatService {
         private readonly access: ChatAccess,
         private readonly assets: AssetsService,
         private readonly realtime: RealtimeService,
+        private readonly readState: ReadStateService,
     ) {}
 
     /**
@@ -77,7 +79,11 @@ export class ChatService {
             this.prisma.chats.count({ where }),
         ]);
 
-        const lastMessages = await this.getLastMessages(chats.map((chat) => chat.id));
+        const chatIds = chats.map((chat) => chat.id);
+        const [lastMessages, unread] = await Promise.all([
+            this.getLastMessages(chatIds),
+            this.readState.unreadCounts(me, chatIds),
+        ]);
 
         const transformedChats = chats.flatMap((chat) => {
             const members = chat.members.map((member) => member.user);
@@ -92,10 +98,20 @@ export class ChatService {
                 avatar: chat.group_chat ? groupAvatar(chat, members.map((m) => m.avatar.url)) : [otherMember?.avatar.url],
                 members: members.filter((m) => m.id !== me).map((m) => m.id),
                 last_message: lastMessages.get(chat.id) ?? null,
+                unread_count: unread.get(chat.id) ?? 0,
             }];
         });
 
         return { chats: transformedChats, pagination: paginationMeta(page, take, total) };
+    }
+
+    async markRead(me: string, chatId: unknown): Promise<Date | null> {
+        const chat = await this.access.findForMember(chatId, me);
+        return this.readState.markRead(chat.id, me, memberIdsOf(chat));
+    }
+
+    totalUnread(me: string): Promise<number> {
+        return this.readState.totalUnread(me);
     }
 
     async getChatDetails(me: string, chatId: unknown, populate: boolean) {
