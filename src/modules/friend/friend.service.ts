@@ -2,7 +2,7 @@ import { SEARCH_MAX } from "../../common/constants";
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { isUniqueViolation } from "../../common/errors";
 import { directChatKey, isValidId } from "../../common/utils/ids";
-import { paginationMeta, parsePagination, type PaginationOptions } from "../../common/utils/pagination";
+import { CursorPagination, type CursorPaginationOptions } from "../../common/utils/pagination";
 import { personFilter, readSearch } from "../../common/utils/search";
 import { PrismaService } from "../../core/prisma.service";
 import { RealtimeService } from "../../core/realtime.service";
@@ -20,7 +20,7 @@ const USER_SEARCH_PAGINATION = {
     defaultOrder: "asc",
     defaultTake: 20,
     maxTake: 50,
-} satisfies PaginationOptions<"name" | "username" | "created_at", "first_name" | "last_name" | "username" | "created_at">;
+} satisfies CursorPaginationOptions<"name" | "username" | "created_at", "first_name" | "last_name" | "username" | "created_at">;
 
 type Relationship = "friend" | "sent" | "received";
 
@@ -36,18 +36,24 @@ export class FriendService {
     /**
      * People search (everyone except the current user), with how each person relates to them:
      * "friend" (plus their chatId), "sent" / "received" for pending requests, or null.
-     * Query: ?search=text&page=1&take=20&order_by=name&order=asc
+     * Query: ?search=text&cursor=&take=20&order_by=name&order=asc. Includes the total ("12 results").
      */
     async searchUsers(me: string, query: Record<string, unknown>) {
-        const { page, take, skip, orderBy } = parsePagination(query, USER_SEARCH_PAGINATION);
+        const page = CursorPagination.parse(query, USER_SEARCH_PAGINATION);
         const search = readSearch(query.search, SEARCH_MAX);
 
         const where: Prisma.usersWhereInput = { id: { not: me }, ...(search ? personFilter(search) : {}) };
 
-        const [users, total] = await Promise.all([
-            this.prisma.users.findMany({ where, orderBy, skip, take, select: { ...PERSON_SELECT, username: true } }),
+        const [rows, total] = await Promise.all([
+            this.prisma.users.findMany({
+                where,
+                orderBy: page.orderBy,
+                ...page.args((id) => ({ id })),
+                select: { ...PERSON_SELECT, username: true },
+            }),
             this.prisma.users.count({ where }),
         ]);
+        const { rows: users, pagination } = page.result(rows, (user) => user.id, { total });
 
         // Relationship lookups only for the people on this page
         const pageIds = users.map((user) => user.id);
@@ -90,7 +96,7 @@ export class FriendService {
                 request_status: relationship.get(user.id) ?? null,
                 chat_id: chatIdByFriend.get(user.id) ?? null,
             })),
-            pagination: paginationMeta(page, take, total),
+            pagination,
         };
     }
 

@@ -71,6 +71,12 @@ export class ChatController extends AuthenticatedController {
 
     // Group members
 
+    @Get(":id/members")
+    @PaginationQuery()
+    async getMembers(@CurrentUser() user: AuthUser, @Param("id") id: string, @Query() query: Record<string, unknown>) {
+        return { success: true, ...(await this.chats.getMembers(user.id, id, query)) };
+    }
+
     @Post(":id/members")
     async addMembers(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() dto: AddMembersDto) {
         await this.groups.addMembers(user.id, id, dto.members);

@@ -1,7 +1,8 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from "@nestjs/common";
-import { ApiQuery, ApiTags } from "@nestjs/swagger";
+import { ApiTags } from "@nestjs/swagger";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { AuthenticatedController } from "../../common/base.controller";
+import { PaginationQuery } from "../../common/swagger";
 import type { AuthUser } from "../user/user.serializer";
 import { EditMessageDto, ForwardMessageDto, SendAttachmentsDto } from "./message.dto";
 import { MessageService } from "./message.service";
@@ -21,9 +22,9 @@ export class MessageController extends AuthenticatedController {
     }
 
     @Get()
-    @ApiQuery({ name: "page", required: false, type: Number })
-    async getMessages(@CurrentUser() user: AuthUser, @Param("chatId") chatId: string, @Query("page") page?: string) {
-        return { success: true, ...(await this.messages.getMessages(user.id, chatId, page)) };
+    @PaginationQuery()
+    async getMessages(@CurrentUser() user: AuthUser, @Param("chatId") chatId: string, @Query() query: Record<string, unknown>) {
+        return { success: true, ...(await this.messages.getMessages(user.id, chatId, query)) };
     }
 
     @Patch(":messageId")

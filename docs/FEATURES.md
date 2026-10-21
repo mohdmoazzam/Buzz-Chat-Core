@@ -7,6 +7,7 @@ All REST routes are under `/api/v1`. Interactive API docs are at `/api/docs` (Sw
 - [Profiles](#profiles)
 - [Friends](#friends)
 - [Chats](#chats)
+- [Pagination](#pagination)
 - [Group chats](#group-chats)
 - [Messages](#messages)
 - [Files and attachments](#files-and-attachments)
@@ -67,7 +68,7 @@ Rules: usernames are 3–20 characters (letters, numbers, `_`, `.`); passwords a
 
 | Feature | Details |
 |---|---|
-| **Find people** | `GET /user/search?search=&page=&take=`: paginated search by name or username. Each result shows the relationship: `friend` (with its chat id), `sent`, `received` or none. |
+| **Find people** | `GET /user/search?search=&cursor=&take=`: cursor-paginated search (with `pagination.total` for "12 results") by name or username. Each result shows the relationship: `friend` (with its chat id), `sent`, `received` or none. |
 | **Send a friend request** | `POST /user/friend-requests` `{ user_id }`. The receiver gets a live `NEW_REQUEST` event and a badge on the bell. |
 | **Accept / decline** | `PUT /user/friend-requests/:id` `{ accept }`. Accepting creates the 1:1 chat and notifies the sender in-app ("accepted your friend request"). |
 | **Pending requests** | `GET /user/friend-requests` (shown in the bell dropdown). |
@@ -79,17 +80,36 @@ A pair of users can only ever have one 1:1 chat, enforced by a unique `direct_ke
 
 | Feature | Details |
 |---|---|
-| **Chat list** | `GET /chat?page=&take=&search=&order_by=&order=`: infinite scroll, newest activity first, with a last-message preview. Searching matches the group name or the other person's name. |
+| **Chat list** | `GET /chat?cursor=&take=&search=&order_by=&order=`: cursor-paginated infinite scroll, newest activity first, with a last-message preview. Searching matches the group name or the other person's name. |
 | **Live chat list** | New messages move a chat to the top and update its preview without a reload. |
 | **Unread badges** | Each chat in the list has `unread_count`, counted on the server, so it's right on every device, after a reload and for messages that arrived while offline. Live updates come from `NEW_MESSAGE_ALERT` / `MESSAGES_READ`. |
 | **Unread total** | `GET /chat/unread-count` across all chats; shown in the browser tab title, e.g. "(3) BuzzChat". |
 | **Read receipts** | On your own messages: ✓ sent, ✓✓ seen. In groups ✓✓ means everyone who was in the group when you sent it has seen it, and the tooltip says "Seen by 2 of 4". Updates live. |
 | **Marking as read** | A chat counts as read while it's open and the tab is visible (on open, as messages arrive, and when you come back to the tab). Sending a message also marks the chat read. Reading on one device clears the badge on all of them. |
 | **Chat details** | `GET /chat/:id?populate=true` with members. |
+| **Members** | `GET /chat/:id/members?cursor=&take=`: cursor-paginated (20 per page, max 50) in join order (the order admin is handed over in), each with `is_admin`, plus `pagination.total`. |
 | **Mark read (REST)** | `POST /chat/:id/read`: same as the `CHAT_READ` socket event; returns the new `read_at` or `null` if nothing was new. |
 | **Delete chat** | `DELETE /chat/:id`: any member can delete a 1:1 chat; only the admin can delete a group. Messages and their files are removed too. |
 | **Online status** | Contacts see who is online; a user with several tabs or devices stays online until the last one closes. |
 | **Typing indicator** | "typing…" in 1:1 chats; in groups the name of who is typing ("Ravi is typing…", "Ravi and Amit are typing…"). `START_TYPING` / `STOP_TYPING` carry `{ chat_id, user_id, first_name }`. |
+
+## Pagination
+
+Every list API is cursor-paginated through one class, `CursorPagination` (`src/common/utils/pagination.ts`).
+
+- Request: `?take=20` for the first page, then `?take=20&cursor=<pagination.next_cursor>` for the next one. Lists that can be sorted also take `order_by` and `order`.
+- Response: the items plus `pagination: { take, next_cursor, has_more }` (and `total` on people search and group members). `next_cursor` is `null` on the last page.
+- The cursor is the opaque id of the last row. The next page is read with Prisma's `cursor`, so the database compares against that row's stored values. That stays exact although timestamps have microseconds and a JS `Date` only milliseconds, works for any sort order (names included), and doesn't slow down deep into a list like `OFFSET` does.
+- Lists that get re-sorted (a chat moves up on a new message) can repeat a row across pages; clients de-duplicate by id. If the cursor row was deleted, the next page comes back empty and the client starts over from the first page on its next refresh.
+- An invalid `cursor`, `take` or `order_by` is a 400 that says what is allowed.
+
+Using it in a service:
+
+```ts
+const page = CursorPagination.parse(query, { orderFields: { updated_at: ["updated_at"] }, defaultOrderBy: "updated_at" });
+const rows = await prisma.chats.findMany({ where, orderBy: page.orderBy, ...page.args((id) => ({ id })) });
+const { rows: chats, pagination } = page.result(rows, (chat) => chat.id);
+```
 
 ## Group chats
 
@@ -100,7 +120,7 @@ A pair of users can only ever have one 1:1 chat, enforced by a unique `direct_ke
 | **Edit group** | `PUT /chat/:id`: name, description, picture (admin only). |
 | **Add members** | `POST /chat/:id/members` (admin only, friends only, max 15). New members get an in-app notification. |
 | **Remove a member** | `DELETE /chat/:id/members/:userId` (admin only). |
-| **Group info** | From the group name or the ⋮ menu in a chat: a side panel (full screen on phones) with the picture, description, created date, members (you, admin, online first; search from 7 members; green dot when online), "Manage group" for the admin, and Leave / Delete group. When leaving isn't allowed the panel says why up front. The ⋮ menu also has Leave group and, for the admin, Delete group. |
+| **Group info** | From the group name or the ⋮ menu in a chat: a side panel (full screen on phones) with the picture, name, member count, description, members (green dot when online, "Admin" label, "Show more" for the next page), "Manage group" for the admin, and Leave / Delete group. When leaving isn't allowed the panel says why up front. |
 | **Leave a group** | `DELETE /chat/:id/members/me`. Not allowed when fewer than 3 members would remain (delete it instead). An admin who leaves hands admin to the longest-standing member. |
 | **System alerts** | "Welcome to …", "X was added", "X left the group" appear live in the chat (`ALERT`). |
 
@@ -111,7 +131,7 @@ The group creator is the admin.
 | Feature | Details |
 |---|---|
 | **Send text** | Over the socket (`NEW_MESSAGE`), up to 4,000 characters. The server checks membership and acknowledges with the saved message id. |
-| **History** | `GET /chat/:id/messages?page=`: 20 per page, loaded upward as you scroll. Also returns `read_receipts` (`user_id`, `last_read_at`, `joined_at` for the other members). |
+| **History** | `GET /chat/:id/messages?cursor=&take=`: newest first, 20 per page (max 50), loaded upward as you scroll; each page is oldest first. Also returns `read_receipts` (`user_id`, `last_read_at`, `joined_at` for the other members). |
 | **Edit** | `PATCH /chat/:id/messages/:messageId`: your own messages, within **15 minutes** of sending. Shown as "edited". |
 | **Delete for everyone** | `DELETE /chat/:id/messages/:messageId`: the message becomes a "deleted" placeholder; files no other message uses are removed. |
 | **Forward** | `POST /chat/:id/messages/:messageId/forward` `{ chat_ids }`: up to 5 chats at once, with text and files. Shown as "Forwarded"; files are shared, not uploaded again. |
@@ -204,7 +224,7 @@ Each template also gets `app` (`name`, `url`, `year`). In `html.ejs` use `<%= %>
 
 | Route | Purpose |
 |---|---|
-| `GET /notifications?page=&take=&unread=true` | Inbox with `unread_count` |
+| `GET /notifications?cursor=&take=&unread=true` | Inbox with `unread_count` |
 | `GET /notifications/unread-count` | Badge count only |
 | `PATCH /notifications/read-all` | Mark everything read |
 | `PATCH /notifications/:id/read` | Mark one read |
