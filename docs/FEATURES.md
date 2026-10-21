@@ -40,7 +40,11 @@ All REST routes are under `/api/v1`. Interactive API docs are at `/api/docs` (Sw
 |---|---|
 | `POST /user/register` | Create an account |
 | `POST /user/login` | Log in |
-| `GET /user/logout` | Log out |
+| `POST /user/logout` | Log out (ends this device's session) |
+| `GET /user/sessions` | Logged-in devices; this one has `current: true` |
+| `DELETE /user/sessions/:id` | Log out one device |
+| `DELETE /user/sessions/others` | Log out every device except this one |
+| `DELETE /user/sessions` | Log out everywhere, this device included |
 | `POST /user/forgot-password` | `{ email }`: send a reset code |
 | `POST /user/reset-password` | `{ email, otp, password }`: set a new password |
 

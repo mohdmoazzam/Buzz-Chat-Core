@@ -4,6 +4,7 @@ import { randomInt } from "crypto";
 import { BCRYPT_ROUNDS, RESET_OTP_MAX_ATTEMPTS, RESET_OTP_RESEND_COOLDOWN_MS, RESET_OTP_TTL_MS } from "../../common/constants";
 import { MailService } from "../../core/mail.service";
 import { PrismaService } from "../../core/prisma.service";
+import { SessionService } from "../../core/session.service";
 import { NotificationService } from "../notification/notification.service";
 import type { ForgotPasswordDto, ResetPasswordDto } from "./auth.dto";
 
@@ -18,6 +19,7 @@ export class PasswordResetService implements OnModuleInit {
     constructor(
         private readonly prisma: PrismaService,
         private readonly mail: MailService,
+        private readonly sessions: SessionService,
         private readonly notifications: NotificationService,
     ) {}
 
@@ -93,5 +95,7 @@ export class PasswordResetService implements OnModuleInit {
             this.prisma.users.update({ where: { id: user.id }, data: { password } }),
             this.prisma.password_resets.delete({ where: { user_id: user.id } }),
         ]);
+        // Whoever knew the old password is logged out too
+        await this.sessions.revokeAll(user.id);
     }
 }

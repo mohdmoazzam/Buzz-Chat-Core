@@ -4,6 +4,7 @@ import { config } from "../config/env";
 import { MailService } from "./mail.service";
 import { PrismaService } from "./prisma.service";
 import { RealtimeService } from "./realtime.service";
+import { SessionService } from "./session.service";
 import { StorageService } from "./storage.service";
 import { TokenService } from "./token.service";
 
@@ -11,7 +12,7 @@ import { TokenService } from "./token.service";
 @Global()
 @Module({
     imports: [JwtModule.register({ secret: config.jwtSecret })],
-    providers: [PrismaService, TokenService, StorageService, RealtimeService, MailService],
-    exports: [PrismaService, TokenService, StorageService, RealtimeService, MailService],
+    providers: [PrismaService, TokenService, SessionService, StorageService, RealtimeService, MailService],
+    exports: [PrismaService, TokenService, SessionService, StorageService, RealtimeService, MailService],
 })
 export class CoreModule {}

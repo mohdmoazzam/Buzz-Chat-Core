@@ -16,6 +16,9 @@ export const cookieOptions: CookieOptions = {
 
 export const BCRYPT_ROUNDS = 10;
 
+/** How stale a session's last_seen_at may get before a request refreshes it. */
+export const SESSION_TOUCH_INTERVAL_MS = 5 * 60 * 1000;
+
 // Forgot password: a 6-digit code emailed to the user
 export const RESET_OTP_TTL_MS = 10 * 60 * 1000;
 export const RESET_OTP_RESEND_COOLDOWN_MS = 60 * 1000;

@@ -138,6 +138,24 @@ CREATE TABLE password_resets (
     created_at timestamptz(6) NOT NULL DEFAULT now()
 );
 
+-- Logged-in devices: one row per login. The session JWT carries the row id (sid),
+-- so deleting a row logs that device out (core/session.service.ts)
+CREATE TABLE sessions (
+    id           uuid           PRIMARY KEY DEFAULT uuidv7(),
+    user_id      uuid           NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    -- Parsed from the User-Agent at login, e.g. "Chrome", "Windows 11", "mobile"
+    browser      text,
+    os           text,
+    device_type  text,
+    user_agent   text           NOT NULL DEFAULT '',
+    ip           text,
+    created_at   timestamptz(6) NOT NULL DEFAULT now(),
+    -- Refreshed at most every SESSION_TOUCH_INTERVAL_MS, not on every request
+    last_seen_at timestamptz(6) NOT NULL DEFAULT now(),
+    expires_at   timestamptz(6) NOT NULL
+);
+CREATE INDEX sessions_user_id_idx ON sessions (user_id);
+
 -- In-app notifications, written by the in-app queue worker (modules/notification)
 CREATE TABLE notifications (
     id         uuid           PRIMARY KEY DEFAULT uuidv7(),
