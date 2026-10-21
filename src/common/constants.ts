@@ -38,7 +38,6 @@ export const USERNAME_RULE_MESSAGE = "Username must be 3–20 characters: letter
 
 export const PASSWORD_MIN = 8;
 export const PASSWORD_MAX = 72; // bcrypt ignores bytes beyond 72
-export const PASSWORD_RULE_MESSAGE = `Password must be ${PASSWORD_MIN}–${PASSWORD_MAX} characters`;
 
 /** Max length of first_name and of last_name, each. */
 export const NAME_MAX = 50;
