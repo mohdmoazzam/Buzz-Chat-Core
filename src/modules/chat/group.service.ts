@@ -4,6 +4,7 @@ import { PrismaService } from "../../core/prisma.service";
 import { RealtimeService } from "../../core/realtime.service";
 import type { Prisma } from "../../../prisma/generated/client";
 import { AssetsService } from "../assets/assets.service";
+import { NotificationService } from "../notification/notification.service";
 import { ALERT, REFETCH_CHATS } from "../../socket/events";
 import { fullName } from "../user/user.names";
 import { AVATAR_SELECT } from "../user/user.serializer";
@@ -22,6 +23,7 @@ export class GroupService {
         private readonly access: ChatAccess,
         private readonly assets: AssetsService,
         private readonly realtime: RealtimeService,
+        private readonly notifications: NotificationService,
     ) {}
 
     async createGroup(me: string, dto: CreateGroupDto): Promise<string> {
@@ -69,6 +71,7 @@ export class GroupService {
 
         this.alert(allMembers, chat.id, `Welcome to ${name}`);
         this.realtime.emitToUsers(members, REFETCH_CHATS);
+        await this.notifications.inApp(members, "group_added", { chat_id: chat.id, group_name: name }, me);
         return chat.id;
     }
 
@@ -135,6 +138,7 @@ export class GroupService {
         const names = newUsers.map(fullName).join(", ");
         this.alert(memberIds, chat.id, `${names} ${newUsers.length > 1 ? "were" : "was"} added to the group`);
         this.realtime.emitToUsers(memberIds, REFETCH_CHATS);
+        await this.notifications.inApp(newIds, "group_added", { chat_id: chat.id, group_name: chat.name }, me);
     }
 
     async removeMember(me: string, body: RemoveMemberBody): Promise<void> {

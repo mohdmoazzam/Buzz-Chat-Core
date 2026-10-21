@@ -9,6 +9,7 @@ import { RealtimeService } from "../../core/realtime.service";
 import type { Prisma } from "../../../prisma/generated/client";
 import { NEW_REQUEST, REFETCH_CHATS } from "../../socket/events";
 import { ChatAccess } from "../chat/chat.access";
+import { NotificationService } from "../notification/notification.service";
 import { fullName } from "../user/user.names";
 import { PERSON_SELECT } from "../user/user.serializer";
 
@@ -29,6 +30,7 @@ export class FriendService {
         private readonly prisma: PrismaService,
         private readonly access: ChatAccess,
         private readonly realtime: RealtimeService,
+        private readonly notifications: NotificationService,
     ) {}
 
     /**
@@ -148,7 +150,7 @@ export class FriendService {
         const { sender, receiver } = friendRequest;
         const members = [sender.id, receiver.id];
         const directKey = directChatKey(sender.id, receiver.id);
-        await this.prisma.$transaction([
+        const [chat] = await this.prisma.$transaction([
             // direct_key is unique, so accepting twice can never create a second chat
             this.prisma.chats.upsert({
                 where: { direct_key: directKey },
@@ -174,6 +176,7 @@ export class FriendService {
         ]);
 
         this.realtime.emitToUsers(members, REFETCH_CHATS);
+        await this.notifications.inApp([sender.id], "friend_request_accepted", { chat_id: chat.id }, me);
         return sender.id;
     }
 

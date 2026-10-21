@@ -54,4 +54,19 @@ export const config = Object.freeze({
         apiKey: process.env.CLOUDINARY_API_KEY ?? "",
         apiSecret: process.env.CLOUDINARY_API_SECRET ?? "",
     },
+
+    // Links in emails point here
+    appUrl: parseOrigins(process.env.APP_URL)[0] ?? "https://buzzchatapp.vercel.app",
+
+    // BullMQ notification queues
+    redisUrl: required("REDIS_URL"),
+    // Run the queue workers in this process; "false" when a separate worker process runs them
+    notificationWorkers: process.env.NOTIFICATION_WORKERS !== "false",
+
+    // Transactional email (password reset codes). The sender must be verified in Brevo.
+    brevo: {
+        apiKey: process.env.BREVO_API_KEY ?? "",
+        senderEmail: process.env.BREVO_SENDER_EMAIL ?? "",
+        senderName: process.env.BREVO_SENDER_NAME ?? "BuzzChat",
+    },
 });

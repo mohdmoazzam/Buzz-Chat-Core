@@ -5,8 +5,9 @@ import { AUTH_COOKIE, cookieOptions, TRY_LATER } from '../../common/constants';
 import { RateLimit } from '../../common/guards/rate-limit.guard';
 import { TokenService } from '../../core/token.service';
 import type { AuthUser } from '../user/user.serializer';
-import { LoginDto, RegisterDto } from './auth.dto';
+import { ForgotPasswordDto, LoginDto, RegisterDto, ResetPasswordDto } from './auth.dto';
 import { AuthService } from './auth.service';
+import { PasswordResetService } from './password-reset.service';
 
 @ApiTags('Auth')
 @Controller('user')
@@ -14,6 +15,7 @@ export class AuthController {
     constructor(
         private readonly auth: AuthService,
         private readonly tokens: TokenService,
+        private readonly passwordReset: PasswordResetService,
     ) {}
 
     @Post('register')
@@ -29,6 +31,22 @@ export class AuthController {
     async login(@Body() dto: LoginDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
         const user = await this.auth.login(dto, req);
         return this.startSession(res, user, `Welcome back, ${user.first_name}`);
+    }
+
+    @Post('forgot-password')
+    @HttpCode(200)
+    @RateLimit(5, 15, TRY_LATER)
+    async forgotPassword(@Body() dto: ForgotPasswordDto) {
+        await this.passwordReset.requestReset(dto);
+        return { success: true, message: 'If an account uses that email, a reset code is on its way' };
+    }
+
+    @Post('reset-password')
+    @HttpCode(200)
+    @RateLimit(10, 15, TRY_LATER)
+    async resetPassword(@Body() dto: ResetPasswordDto) {
+        await this.passwordReset.resetPassword(dto);
+        return { success: true, message: 'Password updated. You can log in now.' };
     }
 
     // Logout must work even with an expired session

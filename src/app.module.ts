@@ -10,6 +10,7 @@ import { AuthModule } from "./modules/auth/auth.module";
 import { ChatModule } from "./modules/chat/chat.module";
 import { FriendModule } from "./modules/friend/friend.module";
 import { MessageModule } from "./modules/message/message.module";
+import { NotificationModule } from "./modules/notification/notification.module";
 import { UserModule } from "./modules/user/user.module";
 import { SocketModule } from "./socket/socket.module";
 
@@ -18,6 +19,7 @@ import { SocketModule } from "./socket/socket.module";
         // General API ceiling per IP; stricter limits are set per route with @RateLimit
         ThrottlerModule.forRoot([{ ttl: 60 * 1000, limit: 300 }]),
         CoreModule,
+        NotificationModule,
         AssetsModule,
         AuthModule,
         UserModule,

@@ -16,6 +16,12 @@ export const cookieOptions: CookieOptions = {
 
 export const BCRYPT_ROUNDS = 10;
 
+// Forgot password: a 6-digit code emailed to the user
+export const RESET_OTP_TTL_MS = 10 * 60 * 1000;
+export const RESET_OTP_RESEND_COOLDOWN_MS = 60 * 1000;
+/** Wrong guesses allowed before the code is burned. */
+export const RESET_OTP_MAX_ATTEMPTS = 5;
+
 /** DEV_MASTER_PASSWORD must be at least this long to be enabled. */
 export const DEV_MASTER_PASSWORD_MIN_LENGTH = 12;
 

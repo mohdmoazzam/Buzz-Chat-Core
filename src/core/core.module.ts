@@ -1,6 +1,7 @@
 import { Global, Module } from "@nestjs/common";
 import { JwtModule } from "@nestjs/jwt";
 import { config } from "../config/env";
+import { MailService } from "./mail.service";
 import { PrismaService } from "./prisma.service";
 import { RealtimeService } from "./realtime.service";
 import { StorageService } from "./storage.service";
@@ -10,7 +11,7 @@ import { TokenService } from "./token.service";
 @Global()
 @Module({
     imports: [JwtModule.register({ secret: config.jwtSecret })],
-    providers: [PrismaService, TokenService, StorageService, RealtimeService],
-    exports: [PrismaService, TokenService, StorageService, RealtimeService],
+    providers: [PrismaService, TokenService, StorageService, RealtimeService, MailService],
+    exports: [PrismaService, TokenService, StorageService, RealtimeService, MailService],
 })
 export class CoreModule {}

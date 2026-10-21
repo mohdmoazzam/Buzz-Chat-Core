@@ -123,6 +123,36 @@ CREATE TABLE friend_requests (
 -- Notifications: requests sent to a user, newest first
 CREATE INDEX friend_requests_receiver_id_created_at_idx ON friend_requests (receiver_id, created_at DESC);
 
+-- Forgot password: at most one pending code per user; a new request replaces it
+CREATE TABLE password_resets (
+    user_id    uuid           PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
+    -- bcrypt hash of the 6-digit code (the code itself is only in the email)
+    code_hash  text           NOT NULL,
+    -- Wrong guesses so far; the code stops working after RESET_OTP_MAX_ATTEMPTS
+    attempts   integer        NOT NULL DEFAULT 0,
+    expires_at timestamptz(6) NOT NULL,
+    -- When the code was sent (resend cooldown)
+    created_at timestamptz(6) NOT NULL DEFAULT now()
+);
+
+-- In-app notifications, written by the in-app queue worker (modules/notification)
+CREATE TABLE notifications (
+    id         uuid           PRIMARY KEY DEFAULT uuidv7(),
+    user_id    uuid           NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    -- Who caused it (e.g. the friend who accepted); null for system notifications
+    actor_id   uuid           REFERENCES users (id) ON DELETE SET NULL,
+    -- friend_request_accepted, group_added, ... (InAppTemplateData in notification.types.ts)
+    type       text           NOT NULL,
+    title      text           NOT NULL,
+    body       text           NOT NULL DEFAULT '',
+    -- Type-specific extras, e.g. { "chat_id": "..." }
+    data       jsonb          NOT NULL DEFAULT '{}',
+    read_at    timestamptz(6),
+    created_at timestamptz(6) NOT NULL DEFAULT now()
+);
+-- A user's inbox, newest first (also serves the unread count)
+CREATE INDEX notifications_user_id_created_at_idx ON notifications (user_id, created_at DESC);
+
 CREATE TRIGGER users_set_updated_at BEFORE UPDATE ON users
     FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 CREATE TRIGGER chats_set_updated_at BEFORE UPDATE ON chats

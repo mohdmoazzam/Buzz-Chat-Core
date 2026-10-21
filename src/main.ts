@@ -10,6 +10,7 @@ import { AllExceptionsFilter } from "./common/filters/all-exceptions.filter";
 import { setupSwagger, SWAGGER_PATH } from "./common/swagger";
 import { createValidationPipe } from "./common/validation";
 import { config } from "./config/env";
+import { MailService } from "./core/mail.service";
 import { StorageService } from "./core/storage.service";
 import { isDevMasterPasswordEnabled } from "./modules/auth/dev-master-password";
 
@@ -71,6 +72,9 @@ async function bootstrap() {
     }
     if (!app.get(StorageService).isConfigured) {
         logger.warn("*** Cloudinary is not configured: avatar and file uploads will fail ***");
+    }
+    if (!app.get(MailService).isConfigured) {
+        logger.warn("*** Brevo is not configured (BREVO_API_KEY, BREVO_SENDER_EMAIL): forgot password will fail ***");
     }
     if (isDevMasterPasswordEnabled()) {
         logger.warn("*** [DEV] Master password login is ENABLED (localhost only). Never use this in production. ***");

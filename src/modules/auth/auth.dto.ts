@@ -59,6 +59,28 @@ export class RegisterDto {
     avatar_id!: string;
 }
 
+export class ForgotPasswordDto {
+    @ApiProperty({ format: 'email', maxLength: 254 })
+    @Trim()
+    @MaxLength(254, { message: 'Please enter a valid email address' })
+    @IsEmail({}, { message: 'Please enter a valid email address' })
+    @IsString({ message: 'Please enter your email' })
+    email!: string;
+}
+
+export class ResetPasswordDto extends ForgotPasswordDto {
+    @ApiProperty({ pattern: '^[0-9]{6}$', example: '123456', description: 'The code emailed by POST /user/forgot-password' })
+    @Trim()
+    @Matches(/^[0-9]{6}$/, { message: 'Please enter the 6-digit code from the email' })
+    @IsString({ message: 'Please enter the 6-digit code from the email' })
+    otp!: string;
+
+    @ApiProperty({ format: 'password', minLength: PASSWORD_MIN, maxLength: PASSWORD_MAX })
+    @IsString({ message: PASSWORD_RULE_MESSAGE })
+    @Length(PASSWORD_MIN, PASSWORD_MAX, { message: PASSWORD_RULE_MESSAGE })
+    password!: string;
+}
+
 export class LoginDto {
     @ApiProperty()
     @Trim()
