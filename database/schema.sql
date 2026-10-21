@@ -131,6 +131,25 @@ CREATE TABLE message_attachments (
 );
 CREATE INDEX message_attachments_asset_id_idx ON message_attachments (asset_id);
 
+-- Emoji reactions: one per person per message (a new emoji replaces theirs)
+CREATE TABLE message_reactions (
+    message_id uuid           NOT NULL REFERENCES messages (id) ON DELETE CASCADE,
+    user_id    uuid           NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    emoji      text           NOT NULL,
+    created_at timestamptz(6) NOT NULL DEFAULT now(),
+    PRIMARY KEY (message_id, user_id)
+);
+CREATE INDEX message_reactions_user_id_idx ON message_reactions (user_id);
+
+-- Delete for me: messages a user removed only for themselves
+CREATE TABLE message_hidden (
+    message_id uuid           NOT NULL REFERENCES messages (id) ON DELETE CASCADE,
+    user_id    uuid           NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    created_at timestamptz(6) NOT NULL DEFAULT now(),
+    PRIMARY KEY (message_id, user_id)
+);
+CREATE INDEX message_hidden_user_id_idx ON message_hidden (user_id);
+
 CREATE TABLE friend_requests (
     id          uuid           PRIMARY KEY DEFAULT uuidv7(),
     sender_id   uuid           NOT NULL REFERENCES users (id) ON DELETE CASCADE,

@@ -7,11 +7,9 @@ Size: **S** = about a day or less, **M** = a few days, **L** = a week or more.
 
 ## Next up (recommended order)
 
-1. **Reply to a message and emoji reactions** (S): expected in any chat app.
-2. **Log out everywhere** (S): closes the gap where a password reset leaves other devices logged in.
-3. **Web push notifications** (M): reach people when the app is closed.
+1. **Web push notifications** (M): reach people when the app is closed.
 
-Done: read receipts and server-side unread counts (see FEATURES.md, Chats); email verification on sign-up (see FEATURES.md, Accounts).
+Done: read receipts and server-side unread counts; replies and emoji reactions; link previews; disappearing messages (see FEATURES.md, Chats and Messages); email verification, Google sign-in, change password, log out everywhere and account deletion (see FEATURES.md, Accounts).
 
 ## Messaging
 
@@ -20,7 +18,6 @@ Done: read receipts and server-side unread counts (see FEATURES.md, Chats); emai
 | Delivered state (✓✓ grey) | S | A `last_delivered_at` next to `last_read_at`, set when a recipient's socket receives the message. |
 | Hide read receipts (privacy) | S | Per-user setting; skip `MESSAGES_READ` to others and hide their ticks both ways. |
 | Reply to a message | S | `reply_to_id` on `messages`, quoted preview in the bubble; add to the existing message menu. |
-| Emoji reactions | S | `message_reactions (message_id, user_id, emoji)` and a socket event. |
 | Mentions in groups (`@username`) | S | Parse on send; notify mentioned users even if the group is muted. |
 | Voice messages | M | Record with `MediaRecorder`, upload through `POST /assets`, waveform player. |
 | Message search | M | Postgres full-text search (`tsvector` and a GIN index), per chat and across chats. |

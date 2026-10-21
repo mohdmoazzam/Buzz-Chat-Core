@@ -25,8 +25,16 @@ export const REPLY_TO_INCLUDE = {
     },
 } as const;
 
-/** A message as sent to clients: with its sender, attachments and the message it replies to. */
-export const MESSAGE_INCLUDE = { sender: { select: NAME_SELECT }, attachments: ATTACHMENTS_INCLUDE, reply_to: REPLY_TO_INCLUDE } as const;
+/** Who reacted with what, oldest first (clients group them into "👍 2" chips). */
+export const REACTIONS_INCLUDE = { orderBy: { created_at: "asc" }, select: { emoji: true, user: { select: NAME_SELECT } } } as const;
+
+/** A message as sent to clients: with its sender, attachments, the message it replies to and its reactions. */
+export const MESSAGE_INCLUDE = {
+    sender: { select: NAME_SELECT },
+    attachments: ATTACHMENTS_INCLUDE,
+    reply_to: REPLY_TO_INCLUDE,
+    reactions: REACTIONS_INCLUDE,
+} as const;
 
 interface ReplyToRow {
     id: string;
