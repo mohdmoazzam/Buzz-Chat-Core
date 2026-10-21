@@ -22,3 +22,6 @@ export const CHAT_JOINED = "CHAT_JOINED";
 export const CHAT_LEAVED = "CHAT_LEAVED";
 
 export const ONLINE_USERS = "ONLINE_USERS";
+
+// Server -> client: this device was logged out (from another device, or by a password reset)
+export const SESSION_REVOKED = "SESSION_REVOKED";

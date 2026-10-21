@@ -4,6 +4,11 @@ import type { AuthUser } from "../modules/user/user.serializer";
 declare global {
     namespace Express {
         interface User extends AuthUser {}
+
+        interface Request {
+            /** The sessions row (device) the request's token belongs to; set by JwtStrategy. */
+            sessionId?: string;
+        }
     }
 }
 

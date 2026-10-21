@@ -12,8 +12,8 @@ import type { Server, Socket } from "socket.io";
 import { config } from "../config/env";
 import { AUTH_COOKIE, MESSAGE_MAX } from "../common/constants";
 import { parseBearer } from "../common/utils/bearer";
-import { PrismaService } from "../core/prisma.service";
-import { RealtimeService, userRoom } from "../core/realtime.service";
+import { RealtimeService, sessionRoom, userRoom } from "../core/realtime.service";
+import { SessionService } from "../core/session.service";
 import { TokenService } from "../core/token.service";
 import { ChatAccess, memberIdsOf } from "../modules/chat/chat.access";
 import { ReadStateService } from "../modules/chat/read-state.service";
@@ -21,7 +21,6 @@ import type { MessageSender } from "../modules/message/message.serializer";
 import { MessageService } from "../modules/message/message.service";
 import { CHAT_JOINED, CHAT_LEAVED, CHAT_READ, NEW_MESSAGE, START_TYPING, STOP_TYPING } from "./events";
 import { PresenceService } from "./presence.service";
-import { NAME_SELECT } from "../modules/user/user.serializer";
 
 type SocketUser = MessageSender;
 
@@ -45,7 +44,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
     constructor(
         private readonly tokens: TokenService,
-        private readonly prisma: PrismaService,
+        private readonly sessions: SessionService,
         private readonly realtime: RealtimeService,
         private readonly presence: PresenceService,
         private readonly access: ChatAccess,
@@ -65,7 +64,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
     async handleConnection(socket: Socket): Promise<void> {
         const { id: userId } = userOf(socket);
-        await socket.join(userRoom(userId));
+        await socket.join([userRoom(userId), sessionRoom(socket.data.sessionId as string)]);
         await this.safely(() => this.presence.userConnected(userId));
     }
 
@@ -135,16 +134,15 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     /** Accepts the token from the handshake auth payload or the session cookie. */
     private async authenticate(socket: Socket): Promise<void> {
         const token = parseBearer(socket.handshake.auth?.token) || parseBearer(readCookie(socket.handshake.headers?.cookie, AUTH_COOKIE));
-        const userId = this.tokens.userIdFrom(token);
-        if (!userId) throw new Error("invalid token");
+        const claims = this.tokens.sessionFrom(token);
+        if (!claims) throw new Error("invalid token");
 
-        const user = await this.prisma.users.findUnique({
-            where: { id: userId },
-            select: NAME_SELECT,
-        });
-        if (!user) throw new Error("user not found");
+        // The device must still be logged in (its sessions row exists), not just hold a signed token
+        const user = await this.sessions.nameFor(claims);
+        if (!user) throw new Error("session not found");
 
         socket.data.user = user satisfies SocketUser;
+        socket.data.sessionId = claims.sessionId;
     }
 
     private async relayTyping(socket: Socket, event: string, chatId: unknown): Promise<void> {
