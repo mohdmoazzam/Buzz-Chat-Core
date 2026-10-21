@@ -1,5 +1,6 @@
+import { DISAPPEARING_OPTIONS } from "../../common/constants";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { ArrayNotEmpty, IsDefined, IsNotEmpty, IsOptional, IsString, IsUUID, Length, MaxLength } from "class-validator";
+import { ArrayNotEmpty, IsDefined, IsIn, IsNotEmpty, IsOptional, IsString, IsUUID, Length, MaxLength, ValidateIf } from "class-validator";
 import { GROUP_DESCRIPTION_MAX, GROUP_MAX_MEMBERS, GROUP_MIN_MEMBERS, GROUP_NAME_MAX } from "../../common/constants";
 import { SkipIfMissing, ToIdList, Trim } from "../../common/validation";
 
@@ -58,4 +59,12 @@ export class AddMembersDto {
     @IsUUID("7", { each: true })
     @ArrayNotEmpty()
     members!: string[];
+}
+
+export class DisappearingDto {
+    // null turns it off
+    @ApiProperty({ enum: [...DISAPPEARING_OPTIONS], nullable: true, description: "Seconds until new messages disappear; null = off" })
+    @ValidateIf((_object, value) => value !== null)
+    @IsIn([...DISAPPEARING_OPTIONS], { message: "Choose 24 hours, 7 days, 90 days or off" })
+    seconds!: number | null;
 }

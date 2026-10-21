@@ -70,7 +70,7 @@ export class AssetsService {
             select: {
                 uploaded_by: true,
                 mime_type: true,
-                _count: { select: { user_avatars: true, chat_avatars: true, message_attachments: true } },
+                _count: { select: { user_avatars: true, user_covers: true, chat_avatars: true, message_attachments: true } },
             },
         });
 
@@ -80,6 +80,7 @@ export class AssetsService {
                 (asset) =>
                     asset.uploaded_by === ownerId &&
                     !asset._count.user_avatars &&
+                    !asset._count.user_covers &&
                     !asset._count.chat_avatars &&
                     !asset._count.message_attachments,
             );
@@ -103,6 +104,7 @@ export class AssetsService {
                 where: {
                     id: { in: ids },
                     user_avatars: { none: {} },
+                    user_covers: { none: {} },
                     chat_avatars: { none: {} },
                     message_attachments: { none: {} },
                 },

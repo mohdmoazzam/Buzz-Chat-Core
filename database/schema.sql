@@ -48,6 +48,8 @@ CREATE TABLE users (
     password         text           NOT NULL,
     -- RESTRICT: an asset can't be deleted while it is someone's profile photo
     avatar_id        uuid           NOT NULL REFERENCES assets (id) ON DELETE RESTRICT,
+    -- Optional banner behind the profile photo
+    cover_id         uuid           REFERENCES assets (id) ON DELETE SET NULL,
     -- null until the sign-up code is entered; unverified accounts can only verify or log out
     email_verified_at timestamptz(6),
     -- Google's account id ("sub") once the user signs in with Google; null otherwise
@@ -70,6 +72,8 @@ CREATE TABLE chats (
     group_chat       boolean        NOT NULL DEFAULT false,
     -- "<smallerUserId>:<largerUserId>" for 1:1 chats, so a pair can only ever have one chat
     direct_key       text           UNIQUE,
+    -- Disappearing messages: new messages expire this many seconds after sending (null = off)
+    disappearing_seconds integer,
     -- Group admin; for 1:1 chats, the person who sent the friend request
     creator_id       uuid           NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     created_at       timestamptz(6) NOT NULL DEFAULT now(),
@@ -98,6 +102,10 @@ CREATE TABLE messages (
     forwarded   boolean        NOT NULL DEFAULT false,
     -- The message this one replies to (same chat); SET NULL keeps the reply if that row goes
     reply_to_id uuid           REFERENCES messages (id) ON DELETE SET NULL,
+    -- { url, title, description, image, site_name } of the first link, filled in by a queue job
+    link_preview jsonb,
+    -- Set when the chat has disappearing messages on; the cleanup job deletes the row after it
+    expires_at  timestamptz(6),
     -- Set when the sender edits the text
     edited_at   timestamptz(6),
     -- Set when the sender deletes it for everyone; the row stays as a placeholder
@@ -111,6 +119,8 @@ CREATE INDEX messages_chat_id_created_at_idx ON messages (chat_id, created_at DE
 CREATE INDEX messages_created_at_idx ON messages (created_at);
 -- A message's replies (for the SET NULL above)
 CREATE INDEX messages_reply_to_id_idx ON messages (reply_to_id);
+-- Disappearing messages: the cleanup job's lookup
+CREATE INDEX messages_expires_at_idx ON messages (expires_at);
 
 -- Files attached to a message, in the order they were sent
 CREATE TABLE message_attachments (

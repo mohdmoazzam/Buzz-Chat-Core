@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Post, Put, Query } from "@nestjs/common";
-import { ApiQuery, ApiTags } from "@nestjs/swagger";
+import { ApiParam, ApiQuery, ApiTags } from "@nestjs/swagger";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { AuthenticatedController } from "../../common/base.controller";
 import { PaginationQuery } from "../../common/swagger";
@@ -19,6 +19,13 @@ export class FriendController extends AuthenticatedController {
     @PaginationQuery(["name", "username", "created_at"])
     async searchUsers(@CurrentUser() user: AuthUser, @Query() query: Record<string, unknown>) {
         return { success: true, ...(await this.friends.searchUsers(user.id, query)) };
+    }
+
+    // "profile/:id", not ":id": a bare param would also match /user/me and the other /user routes
+    @Get("profile/:id")
+    @ApiParam({ name: "id", format: "uuid" })
+    async getProfile(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+        return { success: true, ...(await this.friends.getProfile(user.id, id)) };
     }
 
     @Get("friends")

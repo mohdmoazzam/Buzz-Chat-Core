@@ -23,11 +23,9 @@ Done: read receipts and server-side unread counts (see FEATURES.md, Chats); emai
 | Emoji reactions | S | `message_reactions (message_id, user_id, emoji)` and a socket event. |
 | Mentions in groups (`@username`) | S | Parse on send; notify mentioned users even if the group is muted. |
 | Voice messages | M | Record with `MediaRecorder`, upload through `POST /assets`, waveform player. |
-| Link previews | M | A queue job fetches Open Graph tags and stores them on the message. |
 | Message search | M | Postgres full-text search (`tsvector` and a GIN index), per chat and across chats. |
 | Shared media gallery | M | Per-chat Photos / Files / Links tabs built from `message_attachments`. |
 | Scheduled messages | M | Delayed BullMQ jobs, which the queue setup already supports. |
-| Disappearing messages | M | Per-chat timer and a repeating cleanup job. |
 | Pin messages | S | `pinned_at` on `messages`, a pinned bar at the top of the chat. |
 
 ## Chats and people

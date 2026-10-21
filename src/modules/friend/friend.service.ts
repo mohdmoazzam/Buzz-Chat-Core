@@ -11,7 +11,7 @@ import { NEW_REQUEST, REFETCH_CHATS } from "../../socket/events";
 import { ChatAccess } from "../chat/chat.access";
 import { NotificationService } from "../notification/notification.service";
 import { fullName } from "../user/user.names";
-import { NAME_SELECT, PERSON_SELECT } from "../user/user.serializer";
+import { AVATAR_SELECT, NAME_SELECT, PERSON_SELECT } from "../user/user.serializer";
 
 // "name" sorts by first name, then last name
 const USER_SEARCH_PAGINATION = {
@@ -56,39 +56,10 @@ export class FriendService {
         const { rows: users, pagination } = page.result(rows, (user) => user.id, { total });
 
         // Relationship lookups only for the people on this page
-        const pageIds = users.map((user) => user.id);
-        const [pendingRequests, friendChats] = pageIds.length
-            ? await Promise.all([
-                  this.prisma.friend_requests.findMany({
-                      where: {
-                          OR: [
-                              { sender_id: me, receiver_id: { in: pageIds } },
-                              { receiver_id: me, sender_id: { in: pageIds } },
-                          ],
-                      },
-                      select: { sender_id: true, receiver_id: true },
-                  }),
-                  this.prisma.chats.findMany({
-                      where: { direct_key: { in: pageIds.map((id) => directChatKey(me, id)) } },
-                      select: { id: true, direct_key: true },
-                  }),
-              ])
-            : [[], []];
-
-        const relationship = new Map<string, Relationship>();
-        // "sent" = I already requested them, "received" = they requested me
-        pendingRequests.forEach(({ sender_id, receiver_id }) => {
-            if (sender_id === me) relationship.set(receiver_id, "sent");
-            else relationship.set(sender_id, "received");
-        });
-        // An existing 1:1 chat means they're already friends (takes precedence)
-        const chatIdByFriend = new Map<string, string>();
-        friendChats.forEach(({ id, direct_key }) => {
-            const other = direct_key?.split(":").find((userId) => userId !== me);
-            if (!other) return;
-            relationship.set(other, "friend");
-            chatIdByFriend.set(other, id);
-        });
+        const { relationship, chatIdByFriend } = await this.relationshipsWith(
+            me,
+            users.map((user) => user.id),
+        );
 
         return {
             data: users.map((user) => ({
@@ -98,6 +69,78 @@ export class FriendService {
             })),
             pagination,
         };
+    }
+
+    /**
+     * Someone's public profile (no email or phone), how they relate to the viewer, and the groups
+     * they share. Anyone signed in can view anyone, like people search.
+     */
+    async getProfile(me: string, userId: unknown) {
+        if (!isValidId(userId)) throw new NotFoundException("User not found");
+        const user = await this.prisma.users.findUnique({
+            where: { id: userId },
+            select: { ...PERSON_SELECT, username: true, bio: true, created_at: true, cover: AVATAR_SELECT },
+        });
+        if (!user) throw new NotFoundException("User not found");
+        if (user.id === me) return { profile: user, request_status: "self" as const, chat_id: null, common_groups: [] };
+
+        const [{ relationship, chatIdByFriend }, commonGroups] = await Promise.all([
+            this.relationshipsWith(me, [user.id]),
+            this.prisma.chats.findMany({
+                where: {
+                    group_chat: true,
+                    AND: [{ members: { some: { user_id: me } } }, { members: { some: { user_id: user.id } } }],
+                },
+                orderBy: { updated_at: "desc" },
+                select: { id: true, name: true },
+            }),
+        ]);
+        return {
+            profile: user,
+            request_status: relationship.get(user.id) ?? null,
+            chat_id: chatIdByFriend.get(user.id) ?? null,
+            common_groups: commonGroups,
+        };
+    }
+
+    /**
+     * How each person relates to `me`: "friend" (with the 1:1 chat id), "sent" / "received" for a
+     * pending request, or absent. Used by search and profiles.
+     */
+    private async relationshipsWith(me: string, ids: string[]) {
+        const relationship = new Map<string, Relationship>();
+        const chatIdByFriend = new Map<string, string>();
+        if (!ids.length) return { relationship, chatIdByFriend };
+
+        const [pendingRequests, friendChats] = await Promise.all([
+            this.prisma.friend_requests.findMany({
+                where: {
+                    OR: [
+                        { sender_id: me, receiver_id: { in: ids } },
+                        { receiver_id: me, sender_id: { in: ids } },
+                    ],
+                },
+                select: { sender_id: true, receiver_id: true },
+            }),
+            this.prisma.chats.findMany({
+                where: { direct_key: { in: ids.map((id) => directChatKey(me, id)) } },
+                select: { id: true, direct_key: true },
+            }),
+        ]);
+
+        // "sent" = I already requested them, "received" = they requested me
+        pendingRequests.forEach(({ sender_id, receiver_id }) => {
+            if (sender_id === me) relationship.set(receiver_id, "sent");
+            else relationship.set(sender_id, "received");
+        });
+        // An existing 1:1 chat means they're already friends (takes precedence)
+        friendChats.forEach(({ id, direct_key }) => {
+            const other = direct_key?.split(":").find((userId) => userId !== me);
+            if (!other) return;
+            relationship.set(other, "friend");
+            chatIdByFriend.set(other, id);
+        });
+        return { relationship, chatIdByFriend };
     }
 
     async sendRequest(me: string, userId: string): Promise<void> {

@@ -39,7 +39,7 @@ export class UserService {
 
     /** The DTO has already checked every field's format; this applies the ones that were sent. */
     async updateProfile(user: AuthUser, dto: UpdateProfileDto): Promise<AuthUser> {
-        const { first_name, last_name, bio, username, gender, phone, avatar_id } = dto;
+        const { first_name, last_name, bio, username, gender, phone, avatar_id, cover_id } = dto;
         const data: Prisma.usersUncheckedUpdateInput = { first_name, last_name, bio };
 
         if (username !== undefined && username !== user.username) {
@@ -58,10 +58,17 @@ export class UserService {
             data.avatar_id = avatar_id;
         }
 
+        // null removes the cover; a new id replaces it
+        const coverChanged = cover_id !== undefined && cover_id !== user.cover_id;
+        if (coverChanged) {
+            if (cover_id) await this.assets.assertUsable([cover_id], user.id, { imagesOnly: true });
+            data.cover_id = cover_id;
+        }
+
         try {
             const updated = await this.prisma.users.update({ where: { id: user.id }, data, ...USER_VIEW });
-            // The old photo is no longer used anywhere
-            if (newAvatar) this.assets.removeInBackground([user.avatar_id]);
+            // The old photo / cover is no longer used anywhere
+            this.assets.removeInBackground([newAvatar ? user.avatar_id : null, coverChanged ? user.cover_id : null]);
             return updated;
         } catch (error) {
             // Unique index race: someone took the username between check and save

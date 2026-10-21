@@ -55,4 +55,11 @@ export class UpdateProfileDto {
     @SkipIfMissing()
     @IsUUID("7")
     avatar_id?: string;
+
+    // Uploaded first via POST /assets; null removes the cover
+    @ApiPropertyOptional({ format: "uuid", nullable: true })
+    @SkipIfMissing()
+    @ValidateIf((_object, value) => value !== null)
+    @IsUUID("7")
+    cover_id?: string | null;
 }

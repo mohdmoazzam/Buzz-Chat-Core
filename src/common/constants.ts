@@ -66,6 +66,9 @@ export const SEARCH_MAX = 50;
 
 // Messages
 
+/** Disappearing messages: the timers a chat can use, in seconds (24 hours, 7 days, 90 days). */
+export const DISAPPEARING_OPTIONS = [24 * 60 * 60, 7 * 24 * 60 * 60, 90 * 24 * 60 * 60] as const;
+
 export const MESSAGE_MAX = 4000;
 export const MESSAGES_PAGE_SIZE = 20;
 export const MESSAGES_PAGE_MAX = 50;
