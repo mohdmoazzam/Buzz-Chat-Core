@@ -145,14 +145,15 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         socket.data.sessionId = claims.sessionId;
     }
 
+    // Carries who is typing, so group chats can show "Ravi is typing…"
     private async relayTyping(socket: Socket, event: string, chatId: unknown): Promise<void> {
-        const { id: userId } = userOf(socket);
+        const { id: userId, first_name } = userOf(socket);
         const chat = await this.access.loadForMember(chatId, userId);
         if (!chat) return;
         this.realtime.emitToUsers(
             memberIdsOf(chat).filter((id) => id !== userId),
             event,
-            { chat_id: chat.id },
+            { chat_id: chat.id, user_id: userId, first_name },
         );
     }
 
