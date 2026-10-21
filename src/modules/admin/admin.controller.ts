@@ -6,6 +6,7 @@ import { AdminBaseController } from "../../common/base.controller";
 import { ADMIN_COOKIE, cookieOptions, TRY_LATER } from "../../common/constants";
 import { RateLimit } from "../../common/guards/rate-limit.guard";
 import { TokenService } from "../../core/token.service";
+import { AdminVerifyDto } from "./admin.dto";
 import { AdminService } from "./admin.service";
 
 // Public: obtaining and clearing the admin session
@@ -20,8 +21,8 @@ export class AdminAuthController {
     @Post("verify")
     @HttpCode(200)
     @RateLimit(10, 15, TRY_LATER)
-    verify(@Body("secret_key") secretKey: unknown, @Res({ passthrough: true }) res: Response) {
-        if (!this.admin.isAdminKey(secretKey)) {
+    verify(@Body() dto: AdminVerifyDto, @Res({ passthrough: true }) res: Response) {
+        if (!this.admin.isAdminKey(dto.secret_key)) {
             throw new UnauthorizedException("Invalid admin key");
         }
         const token = this.tokens.signAdmin();

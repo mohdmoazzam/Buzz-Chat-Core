@@ -2,9 +2,9 @@ import { Body, Controller, Get, Put, Query } from "@nestjs/common";
 import { ApiQuery, ApiTags } from "@nestjs/swagger";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { AuthenticatedController } from "../../common/base.controller";
-import { BIO_MAX, GENDERS, NAME_MAX } from "../../common/constants";
 import type { AuthUser } from "./user.serializer";
-import { UserService, type UpdateProfileBody } from "./user.service";
+import { UpdateProfileDto } from "./user.dto";
+import { UserService } from "./user.service";
 
 // auth, user and friend share the /user prefix to keep existing client URLs
 @ApiTags("Users")
@@ -22,8 +22,8 @@ export class UserController extends AuthenticatedController {
 
     // JSON body; a new photo is uploaded first with POST /assets and sent as avatar_id
     @Put("me")
-    async updateProfile(@CurrentUser() user: AuthUser, @Body() body: UpdateProfileBody) {
-        const updated = await this.users.updateProfile(user, body);
+    async updateProfile(@CurrentUser() user: AuthUser, @Body() dto: UpdateProfileDto) {
+        const updated = await this.users.updateProfile(user, dto);
         return { success: true, message: "Profile updated", user: updated };
     }
 

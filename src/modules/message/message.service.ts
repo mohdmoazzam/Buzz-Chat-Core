@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
-import { FORWARD_MAX_CHATS, MESSAGE_EDIT_WINDOW_MS, MESSAGE_MAX, MESSAGES_PAGE_SIZE, UPLOAD_MAX_FILES } from "../../common/constants";
-import { areValidIds, isValidId, toIdList } from "../../common/utils/ids";
+import { MESSAGE_EDIT_WINDOW_MS, MESSAGES_PAGE_SIZE } from "../../common/constants";
+import { isValidId } from "../../common/utils/ids";
 import { PrismaService } from "../../core/prisma.service";
 import { RealtimeService } from "../../core/realtime.service";
 import { MESSAGE_DELETED, MESSAGE_UPDATED, NEW_MESSAGE, NEW_MESSAGE_ALERT } from "../../socket/events";
@@ -88,18 +88,7 @@ export class MessageService {
     }
 
     /** Sends files that were uploaded first via POST /assets. */
-    async sendAttachments(sender: MessageSender, chatId: unknown, rawAttachmentIds: unknown) {
-        const attachmentIds = toIdList(rawAttachmentIds);
-        if (!attachmentIds.length) {
-            throw new BadRequestException("Please provide attachments");
-        }
-        if (attachmentIds.length > UPLOAD_MAX_FILES) {
-            throw new BadRequestException(`You can send up to ${UPLOAD_MAX_FILES} files at a time`);
-        }
-        if (!areValidIds(attachmentIds)) {
-            throw new BadRequestException("Invalid attachments");
-        }
-
+    async sendAttachments(sender: MessageSender, chatId: unknown, attachmentIds: string[]) {
         const chat = await this.access.findForMember(chatId, sender.id);
         await this.assets.assertUsable(attachmentIds, sender.id);
 
@@ -107,7 +96,7 @@ export class MessageService {
     }
 
     /** Replaces the text of the user's own message, within MESSAGE_EDIT_WINDOW_MS of sending it. */
-    async editMessage(me: string, chatId: unknown, messageId: unknown, rawContent: unknown) {
+    async editMessage(me: string, chatId: unknown, messageId: unknown, content: string) {
         const chat = await this.access.findForMember(chatId, me);
         const message = await this.findOwnMessage(chat, messageId, me, "edit");
 
@@ -117,16 +106,12 @@ export class MessageService {
         if (Date.now() - message.created_at.getTime() > MESSAGE_EDIT_WINDOW_MS) {
             throw new BadRequestException(`Messages can only be edited within ${MESSAGE_EDIT_WINDOW_MS / 60_000} minutes of sending`);
         }
-
-        const content = typeof rawContent === "string" ? rawContent.trim() : "";
-        if (!content) throw new BadRequestException("Message is empty");
-        if (content.length > MESSAGE_MAX) {
-            throw new BadRequestException(`Messages can be at most ${MESSAGE_MAX} characters`);
-        }
-
         const row = await this.prisma.messages.update({
             where: { id: message.id },
-            data: { content, edited_at: new Date() },
+            data: {
+                content,
+                edited_at: new Date(),
+            },
             include: MESSAGE_INCLUDE,
         });
         const updated = withAssets(row);
@@ -161,18 +146,7 @@ export class MessageService {
     }
 
     /** Sends a copy of a message (text and files) to other chats the user belongs to. */
-    async forwardMessage(sender: MessageSender, chatId: unknown, messageId: unknown, rawChatIds: unknown) {
-        const targetIds = toIdList(rawChatIds);
-        if (!targetIds.length) {
-            throw new BadRequestException("Please choose a chat to forward to");
-        }
-        if (targetIds.length > FORWARD_MAX_CHATS) {
-            throw new BadRequestException(`You can forward to up to ${FORWARD_MAX_CHATS} chats at a time`);
-        }
-        if (!areValidIds(targetIds)) {
-            throw new BadRequestException("Invalid chats");
-        }
-
+    async forwardMessage(sender: MessageSender, chatId: unknown, messageId: unknown, targetIds: string[]) {
         const chat = await this.access.findForMember(chatId, sender.id);
         const message = await this.findMessage(chat, messageId);
         if (message.deleted_at) {

@@ -3,6 +3,7 @@ import { ApiQuery, ApiTags } from "@nestjs/swagger";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { AuthenticatedController } from "../../common/base.controller";
 import type { AuthUser } from "../user/user.serializer";
+import { EditMessageDto, ForwardMessageDto, SendAttachmentsDto } from "./message.dto";
 import { MessageService } from "./message.service";
 
 @ApiTags("Messages")
@@ -14,8 +15,8 @@ export class MessageController extends AuthenticatedController {
 
     @Post()
     @HttpCode(200)
-    async sendAttachments(@CurrentUser() user: AuthUser, @Param("chatId") chatId: string, @Body("attachment_ids") attachmentIds: unknown) {
-        const message = await this.messages.sendAttachments(user, chatId, attachmentIds);
+    async sendAttachments(@CurrentUser() user: AuthUser, @Param("chatId") chatId: string, @Body() dto: SendAttachmentsDto) {
+        const message = await this.messages.sendAttachments(user, chatId, dto.attachment_ids);
         return { success: true, message };
     }
 
@@ -30,9 +31,9 @@ export class MessageController extends AuthenticatedController {
         @CurrentUser() user: AuthUser,
         @Param("chatId") chatId: string,
         @Param("messageId") messageId: string,
-        @Body("content") content: unknown,
+        @Body() dto: EditMessageDto,
     ) {
-        const message = await this.messages.editMessage(user.id, chatId, messageId, content);
+        const message = await this.messages.editMessage(user.id, chatId, messageId, dto.content);
         return { success: true, message };
     }
 
@@ -48,9 +49,9 @@ export class MessageController extends AuthenticatedController {
         @CurrentUser() user: AuthUser,
         @Param("chatId") chatId: string,
         @Param("messageId") messageId: string,
-        @Body("chat_ids") chatIds: unknown,
+        @Body() dto: ForwardMessageDto,
     ) {
-        const count = await this.messages.forwardMessage(user, chatId, messageId, chatIds);
+        const count = await this.messages.forwardMessage(user, chatId, messageId, dto.chat_ids);
         return { success: true, message: count === 1 ? "Message forwarded" : `Message forwarded to ${count} chats` };
     }
 }

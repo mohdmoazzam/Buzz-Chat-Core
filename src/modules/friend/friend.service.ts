@@ -94,10 +94,7 @@ export class FriendService {
         };
     }
 
-    async sendRequest(me: string, userId: unknown): Promise<void> {
-        if (!isValidId(userId)) {
-            throw new BadRequestException("Invalid user");
-        }
+    async sendRequest(me: string, userId: string): Promise<void> {
         if (userId === me) {
             throw new BadRequestException("You can't send a request to yourself");
         }

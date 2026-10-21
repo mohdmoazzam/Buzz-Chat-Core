@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
-import { GROUP_DESCRIPTION_MAX, GROUP_MAX_MEMBERS, GROUP_MIN_MEMBERS, GROUP_NAME_MAX } from "../../common/constants";
-import { areValidIds, isValidId, toIdList } from "../../common/utils/ids";
+import { GROUP_MAX_MEMBERS, GROUP_MIN_MEMBERS } from "../../common/constants";
+import { isValidId } from "../../common/utils/ids";
 import { PrismaService } from "../../core/prisma.service";
 import { RealtimeService } from "../../core/realtime.service";
 import type { Prisma } from "../../../prisma/generated/client";
@@ -10,7 +10,7 @@ import { ALERT, REFETCH_CHATS } from "../../socket/events";
 import { fullName } from "../user/user.names";
 import { AVATAR_SELECT, NAME_SELECT } from "../user/user.serializer";
 import { ChatAccess, groupAvatar, MEMBER_ORDER, memberIdsOf } from "./chat.access";
-import type { CreateGroupDto, UpdateGroupBody } from "./group.dto";
+import type { CreateGroupDto, UpdateGroupDto } from "./group.dto";
 
 @Injectable()
 export class GroupService {
@@ -23,17 +23,10 @@ export class GroupService {
     ) {}
 
     async createGroup(me: string, dto: CreateGroupDto): Promise<string> {
-        const name = dto.name;
-        const description = (dto.description ?? "").trim();
-        // Dedupe and never count the creator twice
-        const members = toIdList(dto.members).filter((id) => id !== me);
+        const { name, description = "" } = dto;
+        // Never count the creator twice (the DTO already removed duplicates)
+        const members = dto.members.filter((id) => id !== me);
 
-        if (description.length > GROUP_DESCRIPTION_MAX) {
-            throw new BadRequestException(`Description can be at most ${GROUP_DESCRIPTION_MAX} characters`);
-        }
-        if (!areValidIds(members)) {
-            throw new BadRequestException("Invalid member ids");
-        }
         if (members.length + 1 < GROUP_MIN_MEMBERS) {
             throw new BadRequestException(`Group chat must have at least ${GROUP_MIN_MEMBERS} members`);
         }
@@ -88,12 +81,7 @@ export class GroupService {
         }));
     }
 
-    async addMembers(me: string, chatId: unknown, rawMembers: unknown): Promise<void> {
-        const requested = toIdList(rawMembers);
-        if (!requested.length || !areValidIds(requested)) {
-            throw new BadRequestException("Please select valid members");
-        }
-
+    async addMembers(me: string, chatId: unknown, requested: string[]): Promise<void> {
         const chat = await this.access.findForMember(chatId, me);
         this.access.assertGroupCreator(chat, me, "add members");
 
@@ -179,31 +167,18 @@ export class GroupService {
     }
 
     /** Updates a group's name, description and/or picture (admin only). */
-    async updateGroup(me: string, chatId: unknown, body: UpdateGroupBody) {
+    async updateGroup(me: string, chatId: unknown, dto: UpdateGroupDto) {
         const chat = await this.access.findForMember(chatId, me);
         this.access.assertGroupCreator(chat, me, "edit this group");
 
-        const data: Prisma.chatsUncheckedUpdateInput = {};
-        if (body.name !== undefined) {
-            const trimmed = String(body.name).trim();
-            if (!trimmed || trimmed.length > GROUP_NAME_MAX) {
-                throw new BadRequestException(`Group name must be 1–${GROUP_NAME_MAX} characters`);
-            }
-            data.name = trimmed;
-        }
-        if (body.description !== undefined) {
-            const trimmed = String(body.description).trim();
-            if (trimmed.length > GROUP_DESCRIPTION_MAX) {
-                throw new BadRequestException(`Description can be at most ${GROUP_DESCRIPTION_MAX} characters`);
-            }
-            data.description = trimmed;
-        }
+        // Fields left out of the request stay undefined, which Prisma leaves unchanged
+        const data: Prisma.chatsUncheckedUpdateInput = { name: dto.name, description: dto.description };
         // New group picture, uploaded first via POST /assets
-        const newAvatar = body.avatar_id !== undefined && body.avatar_id !== chat.avatar_id;
+        const avatarId = dto.avatar_id;
+        const newAvatar = avatarId !== undefined && avatarId !== chat.avatar_id;
         if (newAvatar) {
-            if (!isValidId(body.avatar_id)) throw new BadRequestException("Invalid group picture");
-            await this.assets.assertUsable([body.avatar_id], me, { imagesOnly: true });
-            data.avatar_id = body.avatar_id;
+            await this.assets.assertUsable([avatarId], me, { imagesOnly: true });
+            data.avatar_id = avatarId;
         }
 
         const updated = await this.prisma.chats.update({ where: { id: chat.id }, data, include: { avatar: AVATAR_SELECT } });

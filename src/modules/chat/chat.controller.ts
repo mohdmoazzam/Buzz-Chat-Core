@@ -5,7 +5,7 @@ import { AuthenticatedController } from "../../common/base.controller";
 import { PaginationQuery } from "../../common/swagger";
 import type { AuthUser } from "../user/user.serializer";
 import { ChatService } from "./chat.service";
-import { CreateGroupDto, type AddMembersBody, type UpdateGroupBody } from "./group.dto";
+import { AddMembersDto, CreateGroupDto, UpdateGroupDto } from "./group.dto";
 import { GroupService } from "./group.service";
 
 @ApiTags("Chats")
@@ -59,8 +59,8 @@ export class ChatController extends AuthenticatedController {
     }
 
     @Put(":id")
-    async updateGroup(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() body: UpdateGroupBody) {
-        const chat = await this.groups.updateGroup(user.id, id, body);
+    async updateGroup(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() dto: UpdateGroupDto) {
+        const chat = await this.groups.updateGroup(user.id, id, dto);
         return { success: true, message: "Group updated", chat };
     }
 
@@ -72,8 +72,8 @@ export class ChatController extends AuthenticatedController {
     // Group members
 
     @Post(":id/members")
-    async addMembers(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() body: AddMembersBody) {
-        await this.groups.addMembers(user.id, id, body.members);
+    async addMembers(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() dto: AddMembersDto) {
+        await this.groups.addMembers(user.id, id, dto.members);
         return { success: true, message: "Members added successfully" };
     }
 

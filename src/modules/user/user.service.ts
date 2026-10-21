@@ -1,25 +1,11 @@
-import { BadRequestException, ConflictException, Injectable } from "@nestjs/common";
+import { ConflictException, Injectable } from "@nestjs/common";
+import { USERNAME_REGEX, USERNAME_RULE_MESSAGE } from "../../common/constants";
 import { isUniqueViolation } from "../../common/errors";
-import { isValidId } from "../../common/utils/ids";
 import { PrismaService } from "../../core/prisma.service";
-import type { gender, Prisma } from "../../../prisma/generated/client";
+import type { Prisma } from "../../../prisma/generated/client";
 import { AssetsService } from "../assets/assets.service";
-import { BIO_MAX, GENDERS, PHONE_REGEX, USERNAME_REGEX, USERNAME_RULE_MESSAGE } from "../../common/constants";
-import { readNameFields } from "./user.names";
+import type { UpdateProfileDto } from "./user.dto";
 import { USER_VIEW, type AuthUser } from "./user.serializer";
-
-export interface UpdateProfileBody {
-    first_name?: unknown;
-    last_name?: unknown;
-    bio?: unknown;
-    username?: unknown;
-    gender?: unknown;
-    phone?: unknown;
-    /** New profile photo, uploaded first via POST /assets. */
-    avatar_id?: unknown;
-}
-
-const asTrimmedString = (value: unknown): string | undefined => (typeof value === "string" ? value.trim() : undefined);
 
 @Injectable()
 export class UserService {
@@ -51,44 +37,25 @@ export class UserService {
         return { available: !taken, message: taken ? "Username is already taken" : "Username is available" };
     }
 
-    async updateProfile(user: AuthUser, body: UpdateProfileBody): Promise<AuthUser> {
-        // Validate everything before touching the database
-        const names = readNameFields(body);
-        const bio = asTrimmedString(body.bio);
-        const username = asTrimmedString(body.username);
-        const genderValue = asTrimmedString(body.gender);
-        const phone = asTrimmedString(body.phone);
+    /** The DTO has already checked every field's format; this applies the ones that were sent. */
+    async updateProfile(user: AuthUser, dto: UpdateProfileDto): Promise<AuthUser> {
+        const { first_name, last_name, bio, username, gender, phone, avatar_id } = dto;
+        const data: Prisma.usersUncheckedUpdateInput = { first_name, last_name, bio };
 
-        if (bio !== undefined && (!bio || bio.length > BIO_MAX)) {
-            throw new BadRequestException(`Bio must be 1–${BIO_MAX} characters`);
-        }
-        if (genderValue && !GENDERS.includes(genderValue as gender)) {
-            throw new BadRequestException("Invalid gender");
-        }
-        const normalizedPhone = phone?.replace(/[\s\-().]/g, "");
-        if (normalizedPhone && !PHONE_REGEX.test(normalizedPhone)) {
-            throw new BadRequestException("Enter a valid phone number (7–15 digits)");
-        }
-
-        const data: Prisma.usersUncheckedUpdateInput = { ...names };
         if (username !== undefined && username !== user.username) {
-            if (!USERNAME_REGEX.test(username)) {
-                throw new BadRequestException(USERNAME_RULE_MESSAGE);
-            }
             if (await this.isUsernameTaken(username, user.id)) {
                 throw new ConflictException("Username is already taken");
             }
             data.username = username;
         }
-        if (bio !== undefined) data.bio = bio;
-        if (genderValue !== undefined) data.gender = (genderValue || null) as gender | null;
-        if (phone !== undefined) data.phone = normalizedPhone || null;
+        // "" clears these optional fields
+        if (gender !== undefined) data.gender = gender || null;
+        if (phone !== undefined) data.phone = phone || null;
 
-        const newAvatar = body.avatar_id !== undefined && body.avatar_id !== user.avatar_id;
+        const newAvatar = avatar_id !== undefined && avatar_id !== user.avatar_id;
         if (newAvatar) {
-            if (!isValidId(body.avatar_id)) throw new BadRequestException("Invalid profile photo");
-            await this.assets.assertUsable([body.avatar_id], user.id, { imagesOnly: true });
-            data.avatar_id = body.avatar_id;
+            await this.assets.assertUsable([avatar_id], user.id, { imagesOnly: true });
+            data.avatar_id = avatar_id;
         }
 
         try {

@@ -1,7 +1,7 @@
 import { Controller, Post, Req, UploadedFiles, UseGuards, UseInterceptors } from "@nestjs/common";
 import { ApiConsumes, ApiTags } from "@nestjs/swagger";
 import type { Request } from "express";
-import { UPLOAD_MAX_FILES, UPLOAD_RATE_LIMIT_MESSAGE } from "../../common/constants";
+import { UPLOAD_RATE_LIMIT_MESSAGE } from "../../common/constants";
 import { OptionalJwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 import { RateLimit } from "../../common/guards/rate-limit.guard";
 import { FilesUpload } from "../../common/interceptors/upload.interceptors";
