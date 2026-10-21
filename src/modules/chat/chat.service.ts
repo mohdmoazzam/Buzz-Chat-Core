@@ -87,7 +87,7 @@ export class ChatService {
         const { rows: chats, pagination } = page.result(rows, (chat) => chat.id);
 
         const chatIds = chats.map((chat) => chat.id);
-        const [lastMessages, unread] = await Promise.all([this.getLastMessages(chatIds), this.readState.unreadCounts(me, chatIds)]);
+        const [lastMessages, unread] = await Promise.all([this.getLastMessages(me, chatIds), this.readState.unreadCounts(me, chatIds)]);
 
         const transformedChats = chats.flatMap((chat) => {
             const members = chat.members.map((member) => member.user);
@@ -230,7 +230,7 @@ export class ChatService {
     }
 
     /** Latest message per chat in one query (DISTINCT ON uses the {chat_id, created_at} index). */
-    private async getLastMessages(chatIds: string[]): Promise<Map<string, LastMessagePreview>> {
+    private async getLastMessages(me: string, chatIds: string[]): Promise<Map<string, LastMessagePreview>> {
         if (!chatIds.length) return new Map();
         const rows = await this.prisma.$queryRaw<LastMessageRow[]>`
             SELECT DISTINCT ON (m.chat_id)
@@ -244,6 +244,8 @@ export class ChatService {
             FROM messages m
             JOIN users u ON u.id = m.sender_id
             WHERE m.chat_id = ANY(${chatIds}::uuid[])
+              -- Skip messages this user deleted for themselves
+              AND NOT EXISTS (SELECT 1 FROM message_hidden h WHERE h.message_id = m.id AND h.user_id = ${me}::uuid)
             ORDER BY m.chat_id, m.created_at DESC`;
 
         return new Map(

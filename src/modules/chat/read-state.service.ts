@@ -65,6 +65,8 @@ export class ReadStateService {
                 AND m.created_at > cm.last_read_at
                 AND m.sender_id <> cm.user_id
                 AND m.deleted_at IS NULL
+                -- Deleted for me: not unread either
+                AND NOT EXISTS (SELECT 1 FROM message_hidden h WHERE h.message_id = m.id AND h.user_id = cm.user_id)
             WHERE cm.user_id = ${userId}::uuid AND cm.chat_id = ANY(${chatIds}::uuid[])
             GROUP BY cm.chat_id`;
         return new Map(rows.map(({ chat_id, unread }) => [chat_id, unread]));
@@ -79,6 +81,8 @@ export class ReadStateService {
                 AND m.created_at > cm.last_read_at
                 AND m.sender_id <> cm.user_id
                 AND m.deleted_at IS NULL
+                -- Deleted for me: not unread either
+                AND NOT EXISTS (SELECT 1 FROM message_hidden h WHERE h.message_id = m.id AND h.user_id = cm.user_id)
             WHERE cm.user_id = ${userId}::uuid`;
         return row?.unread ?? 0;
     }

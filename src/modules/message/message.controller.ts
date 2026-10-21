@@ -1,10 +1,10 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Put, Query } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { AuthenticatedController } from "../../common/base.controller";
 import { PaginationQuery } from "../../common/swagger";
 import type { AuthUser } from "../user/user.serializer";
-import { EditMessageDto, ForwardMessageDto, SendAttachmentsDto } from "./message.dto";
+import { EditMessageDto, ForwardMessageDto, ReactDto, SendAttachmentsDto } from "./message.dto";
 import { MessageService } from "./message.service";
 
 @ApiTags("Messages")
@@ -25,6 +25,29 @@ export class MessageController extends AuthenticatedController {
     @PaginationQuery()
     async getMessages(@CurrentUser() user: AuthUser, @Param("chatId") chatId: string, @Query() query: Record<string, unknown>) {
         return { success: true, ...(await this.messages.getMessages(user.id, chatId, query)) };
+    }
+
+    // Delete for me: hides it for this user only (anyone's message)
+    @Delete(":messageId/for-me")
+    async hideForMe(@CurrentUser() user: AuthUser, @Param("chatId") chatId: string, @Param("messageId") messageId: string) {
+        await this.messages.hideForMe(user.id, chatId, messageId);
+        return { success: true, message: "Deleted for you" };
+    }
+
+    // One reaction per person; sending a different emoji replaces theirs
+    @Put(":messageId/reaction")
+    async react(
+        @CurrentUser() user: AuthUser,
+        @Param("chatId") chatId: string,
+        @Param("messageId") messageId: string,
+        @Body() dto: ReactDto,
+    ) {
+        return { success: true, message: await this.messages.react(user.id, chatId, messageId, dto.emoji) };
+    }
+
+    @Delete(":messageId/reaction")
+    async unreact(@CurrentUser() user: AuthUser, @Param("chatId") chatId: string, @Param("messageId") messageId: string) {
+        return { success: true, message: await this.messages.react(user.id, chatId, messageId, null) };
     }
 
     @Patch(":messageId")

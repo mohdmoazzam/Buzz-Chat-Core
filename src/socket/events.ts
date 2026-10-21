@@ -17,6 +17,8 @@ export const MESSAGE_DELETED = "MESSAGE_DELETED";
 // Disappearing messages: { chat_id, message_ids } removed by the cleanup job; { chat_id, seconds } when the timer changes
 export const MESSAGES_EXPIRED = "MESSAGES_EXPIRED";
 export const DISAPPEARING_UPDATED = "DISAPPEARING_UPDATED";
+// Delete for me: { chat_id, message_id }, sent only to that user's own devices
+export const MESSAGE_HIDDEN = "MESSAGE_HIDDEN";
 
 export const START_TYPING = "START_TYPING";
 export const STOP_TYPING = "STOP_TYPING";

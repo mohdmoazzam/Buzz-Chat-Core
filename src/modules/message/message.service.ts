@@ -7,7 +7,7 @@ import { CursorPagination } from "../../common/utils/pagination";
 import { Prisma } from "../../../prisma/generated/client";
 import { PrismaService } from "../../core/prisma.service";
 import { RealtimeService } from "../../core/realtime.service";
-import { MESSAGE_DELETED, MESSAGE_UPDATED, NEW_MESSAGE, NEW_MESSAGE_ALERT } from "../../socket/events";
+import { MESSAGE_DELETED, MESSAGE_HIDDEN, MESSAGE_UPDATED, NEW_MESSAGE, NEW_MESSAGE_ALERT } from "../../socket/events";
 import { AssetsService } from "../assets/assets.service";
 import { ChatAccess, memberIdsOf, type ChatWithMemberIds } from "../chat/chat.access";
 import { ReadStateService } from "../chat/read-state.service";
@@ -81,7 +81,7 @@ export class MessageService {
             }),
             this.access.touch(chatId),
         ]);
-        const message = { ...withAssets(row), sender };
+        const message = { ...withAssets(row), sender, reactions: [] };
         this.queueLinkPreview(row.id, content);
 
         this.realtime.emitToUsers(memberIds, NEW_MESSAGE, { chat_id: chatId, message });
@@ -105,7 +105,8 @@ export class MessageService {
 
         const [rows, receipts] = await Promise.all([
             this.prisma.messages.findMany({
-                where: { chat_id: chat.id },
+                // Not the ones this user deleted for themselves
+                where: { chat_id: chat.id, hidden_for: { none: { user_id: me } } },
                 orderBy: [{ created_at: "desc" }, { id: "desc" }],
                 ...page.args((id) => ({ id })),
                 include: MESSAGE_INCLUDE,
@@ -181,6 +182,49 @@ export class MessageService {
         return target.id;
     }
 
+    /**
+     * Sets (or with null, removes) the user's reaction to a message in a chat they're in. One per person:
+     * a new emoji replaces theirs. Everyone in the chat gets the updated message (MESSAGE_UPDATED).
+     */
+    async react(me: string, chatId: unknown, messageId: unknown, emoji: string | null) {
+        const chat = await this.access.findForMember(chatId, me);
+        const message = isValidId(messageId)
+            ? await this.prisma.messages.findFirst({ where: { id: messageId, chat_id: chat.id }, select: { id: true, deleted_at: true } })
+            : null;
+        if (!message) throw new NotFoundException("Message not found");
+        if (message.deleted_at) throw new BadRequestException("You can't react to a deleted message");
+
+        const key = { message_id_user_id: { message_id: message.id, user_id: me } };
+        if (emoji) {
+            await this.prisma.message_reactions.upsert({
+                where: key,
+                create: { message_id: message.id, user_id: me, emoji },
+                update: { emoji, created_at: new Date() },
+            });
+        } else {
+            await this.prisma.message_reactions.deleteMany({ where: { message_id: message.id, user_id: me } });
+        }
+
+        const updated = withAssets(await this.prisma.messages.findUniqueOrThrow({ where: { id: message.id }, include: MESSAGE_INCLUDE }));
+        this.realtime.emitToUsers(memberIdsOf(chat), MESSAGE_UPDATED, { chat_id: chat.id, message: updated });
+        return updated;
+    }
+
+    /**
+     * Delete for me: hides any message in the chat (theirs, someone else's, or a deleted placeholder) for
+     * this user only. Their other devices drop it too (MESSAGE_HIDDEN to their own sockets).
+     */
+    async hideForMe(me: string, chatId: unknown, messageId: unknown): Promise<void> {
+        const chat = await this.access.findForMember(chatId, me);
+        const message = isValidId(messageId)
+            ? await this.prisma.messages.findFirst({ where: { id: messageId, chat_id: chat.id }, select: { id: true } })
+            : null;
+        if (!message) throw new NotFoundException("Message not found");
+
+        await this.prisma.message_hidden.createMany({ data: [{ message_id: message.id, user_id: me }], skipDuplicates: true });
+        this.realtime.emitToUsers([me], MESSAGE_HIDDEN, { chat_id: chat.id, message_id: message.id });
+    }
+
     /** Deletes the user's own message for everyone: the row stays as a "deleted" placeholder. */
     async deleteForEveryone(me: string, chatId: unknown, messageId: unknown) {
         const chat = await this.access.findForMember(chatId, me);
@@ -190,8 +234,9 @@ export class MessageService {
             where: { message_id: message.id },
             select: { asset_id: true },
         });
-        const [, row] = await this.prisma.$transaction([
+        const [, , row] = await this.prisma.$transaction([
             this.prisma.message_attachments.deleteMany({ where: { message_id: message.id } }),
+            this.prisma.message_reactions.deleteMany({ where: { message_id: message.id } }),
             this.prisma.messages.update({
                 where: { id: message.id },
                 data: { content: "", deleted_at: new Date(), reply_to_id: null, link_preview: Prisma.DbNull },
