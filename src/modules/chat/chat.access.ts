@@ -1,11 +1,11 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
-import { isValidId } from "../../common/utils/ids";
-import { PrismaService } from "../../core/prisma.service";
-import type { chats, Prisma } from "../../../prisma/generated/client";
-import { AVATAR_SELECT } from "../user/user.serializer";
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { isValidId } from '../../common/utils/ids';
+import { PrismaService } from '../../core/prisma.service';
+import type { chats, Prisma } from '../../../prisma/generated/client';
+import { AVATAR_SELECT } from '../user/user.serializer';
 
 // Members in join order (the longest-standing member comes first)
-export const MEMBER_ORDER = [{ joined_at: "asc" }, { user_id: "asc" }] satisfies Prisma.chat_membersOrderByWithRelationInput[];
+export const MEMBER_ORDER = [{ joined_at: 'asc' }, { user_id: 'asc' }] satisfies Prisma.chat_membersOrderByWithRelationInput[];
 
 const WITH_MEMBER_IDS = {
     members: { select: { user_id: true }, orderBy: MEMBER_ORDER },
@@ -28,19 +28,22 @@ export class ChatAccess {
     /** The chat if the user belongs to it, otherwise null. */
     async loadForMember(chatId: unknown, userId: string): Promise<ChatWithMemberIds | null> {
         if (!isValidId(chatId)) return null;
-        const chat = await this.prisma.chats.findUnique({ where: { id: chatId }, include: WITH_MEMBER_IDS });
+        const chat = await this.prisma.chats.findUnique({
+            where: { id: chatId },
+            include: WITH_MEMBER_IDS,
+        });
         return chat && memberIdsOf(chat).includes(userId) ? chat : null;
     }
 
     /** Loads a chat and asserts the user belongs to it (404 either way, so ids can't be probed). */
     async findForMember(chatId: unknown, userId: string): Promise<ChatWithMemberIds> {
         const chat = await this.loadForMember(chatId, userId);
-        if (!chat) throw new NotFoundException("Chat not found");
+        if (!chat) throw new NotFoundException('Chat not found');
         return chat;
     }
 
-    assertGroupCreator(chat: Pick<chats, "group_chat" | "creator_id">, userId: string, action: string): void {
-        if (!chat.group_chat) throw new BadRequestException("This is not a group chat");
+    assertGroupCreator(chat: Pick<chats, 'group_chat' | 'creator_id'>, userId: string, action: string): void {
+        if (!chat.group_chat) throw new BadRequestException('This is not a group chat');
         if (chat.creator_id !== userId) throw new ForbiddenException(`Only the group admin can ${action}`);
     }
 
@@ -58,7 +61,7 @@ export class ChatAccess {
         const rows = await this.prisma.chat_members.findMany({
             where: { user_id: { not: userId }, chat: { members: { some: { user_id: userId } } } },
             select: { user_id: true },
-            distinct: ["user_id"],
+            distinct: ['user_id'],
         });
         return rows.map((row) => row.user_id);
     }

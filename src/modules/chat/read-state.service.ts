@@ -1,7 +1,7 @@
-import { Injectable } from "@nestjs/common";
-import { PrismaService } from "../../core/prisma.service";
-import { RealtimeService } from "../../core/realtime.service";
-import { MESSAGES_READ } from "../../socket/events";
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../../core/prisma.service';
+import { RealtimeService } from '../../core/realtime.service';
+import { MESSAGES_READ } from '../../socket/events';
 
 export interface ReadReceipt {
     user_id: string;
@@ -45,7 +45,11 @@ export class ReadStateService {
     /** Sending a message counts as having read the chat up to it. */
     async markSent(chatId: string, userId: string, sentAt: Date, memberIds: string[]): Promise<void> {
         const { count } = await this.prisma.chat_members.updateMany({
-            where: { chat_id: chatId, user_id: userId, last_read_at: { lt: sentAt } },
+            where: {
+                chat_id: chatId,
+                user_id: userId,
+                last_read_at: { lt: sentAt },
+            },
             data: { last_read_at: sentAt },
         });
         if (count) this.announce(chatId, userId, sentAt, memberIds);
@@ -82,8 +86,15 @@ export class ReadStateService {
     /** How far each other member has read, for the ticks on the user's own messages. */
     receipts(chatId: string, exceptUserId: string): Promise<ReadReceipt[]> {
         return this.prisma.chat_members.findMany({
-            where: { chat_id: chatId, user_id: { not: exceptUserId } },
-            select: { user_id: true, last_read_at: true, joined_at: true },
+            where: {
+                chat_id: chatId,
+                user_id: { not: exceptUserId },
+            },
+            select: {
+                user_id: true,
+                last_read_at: true,
+                joined_at: true,
+            },
         });
     }
 
