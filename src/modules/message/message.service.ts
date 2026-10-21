@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
-import { MESSAGE_EDIT_WINDOW_MS, MESSAGES_PAGE_SIZE } from "../../common/constants";
+import { MESSAGE_EDIT_WINDOW_MS, MESSAGES_PAGE_MAX, MESSAGES_PAGE_SIZE } from "../../common/constants";
 import { isValidId } from "../../common/utils/ids";
+import { CursorPagination } from "../../common/utils/pagination";
 import { PrismaService } from "../../core/prisma.service";
 import { RealtimeService } from "../../core/realtime.service";
 import { MESSAGE_DELETED, MESSAGE_UPDATED, NEW_MESSAGE, NEW_MESSAGE_ALERT } from "../../socket/events";
@@ -62,26 +63,28 @@ export class MessageService {
         return message;
     }
 
-    /** Paginated chat history, oldest first within a page. */
-    async getMessages(me: string, chatId: unknown, rawPage: unknown) {
+    /**
+     * Chat history newest first, a page at a time: ?cursor= is the oldest message loaded so far.
+     * Within a page messages are oldest first, ready to prepend.
+     */
+    async getMessages(me: string, chatId: unknown, query: Record<string, unknown>) {
         const chat = await this.access.findForMember(chatId, me);
-        const page = Math.max(1, Number.parseInt(String(rawPage), 10) || 1);
+        const page = CursorPagination.parse(query, { defaultTake: MESSAGES_PAGE_SIZE, maxTake: MESSAGES_PAGE_MAX });
 
-        const [messages, totalMessages, receipts] = await Promise.all([
+        const [rows, receipts] = await Promise.all([
             this.prisma.messages.findMany({
                 where: { chat_id: chat.id },
                 orderBy: [{ created_at: "desc" }, { id: "desc" }],
-                skip: (page - 1) * MESSAGES_PAGE_SIZE,
-                take: MESSAGES_PAGE_SIZE,
+                ...page.args((id) => ({ id })),
                 include: MESSAGE_INCLUDE,
             }),
-            this.prisma.messages.count({ where: { chat_id: chat.id } }),
             this.readState.receipts(chat.id, me),
         ]);
+        const { rows: messages, pagination } = page.result(rows, (message) => message.id);
 
         return {
             messages: messages.reverse().map(withAssets),
-            total_pages: Math.ceil(totalMessages / MESSAGES_PAGE_SIZE),
+            pagination,
             // How far the other members have read: the ticks on your own messages
             read_receipts: receipts,
         };

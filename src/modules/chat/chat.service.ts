@@ -1,6 +1,7 @@
-import { SEARCH_MAX } from "../../common/constants";
-import { Injectable } from "@nestjs/common";
-import { paginationMeta, parsePagination, type PaginationOptions } from "../../common/utils/pagination";
+import { MEMBERS_PAGE_MAX, MEMBERS_PAGE_SIZE, SEARCH_MAX } from "../../common/constants";
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { isValidId } from "../../common/utils/ids";
+import { CursorPagination, type CursorPaginationOptions } from "../../common/utils/pagination";
 import { containsText, personFilter, readSearch } from "../../common/utils/search";
 import { PrismaService } from "../../core/prisma.service";
 import { RealtimeService } from "../../core/realtime.service";
@@ -39,7 +40,7 @@ const CHAT_LIST_PAGINATION = {
     defaultOrder: "desc",
     defaultTake: 20,
     maxTake: 100,
-} satisfies PaginationOptions<"updated_at" | "created_at", "updated_at" | "created_at">;
+} satisfies CursorPaginationOptions<"updated_at" | "created_at", "updated_at" | "created_at">;
 
 /** The chat row as stored, with `members` as a list of user ids. */
 const serializeChat = ({ members: _members, ...chat }: ChatWithMemberIds, memberIds: string[]) => ({
@@ -59,25 +60,25 @@ export class ChatService {
 
     /**
      * Chats the user is in, with a last-message preview.
-     * Query: ?page=1&take=20&order_by=updated_at&order=desc&search=text (updated_at = latest activity).
+     * Query: ?cursor=&take=20&order_by=updated_at&order=desc&search=text (updated_at = latest activity).
      */
     async getMyChats(me: string, query: Record<string, unknown>) {
-        const { page, take, skip, orderBy } = parsePagination(query, CHAT_LIST_PAGINATION);
-        const where = this.chatListFilter(me, query.search);
-
-        const [chats, total] = await Promise.all([
-            this.prisma.chats.findMany({
-                where,
-                orderBy,
-                skip,
-                take,
-                include: {
-                    avatar: AVATAR_SELECT,
-                    members: { orderBy: MEMBER_ORDER, select: { user: { select: PERSON_SELECT } } },
+        const page = CursorPagination.parse(query, CHAT_LIST_PAGINATION);
+        const rows = await this.prisma.chats.findMany({
+            where: this.chatListFilter(me, query.search),
+            orderBy: page.orderBy,
+            ...page.args((id) => ({ id })),
+            include: {
+                avatar: AVATAR_SELECT,
+                members: {
+                    orderBy: MEMBER_ORDER,
+                    select: {
+                        user: { select: PERSON_SELECT },
+                    },
                 },
-            }),
-            this.prisma.chats.count({ where }),
-        ]);
+            },
+        });
+        const { rows: chats, pagination } = page.result(rows, (chat) => chat.id);
 
         const chatIds = chats.map((chat) => chat.id);
         const [lastMessages, unread] = await Promise.all([this.getLastMessages(chatIds), this.readState.unreadCounts(me, chatIds)]);
@@ -85,12 +86,11 @@ export class ChatService {
         const transformedChats = chats.flatMap((chat) => {
             const members = chat.members.map((member) => member.user);
             const otherMember = members.find((member) => member.id !== me);
-            // A 1:1 chat whose other member was deleted has nothing to show
+
             if (!chat.group_chat && !otherMember) return [];
             return [
                 {
                     id: chat.id,
-                    // 1:1 chats are named after the other person
                     name: chat.group_chat ? chat.name : otherMember && fullName(otherMember),
                     group_chat: chat.group_chat,
                     avatar: chat.group_chat
@@ -106,7 +106,7 @@ export class ChatService {
             ];
         });
 
-        return { chats: transformedChats, pagination: paginationMeta(page, take, total) };
+        return { chats: transformedChats, pagination };
     }
 
     async markRead(me: string, chatId: unknown): Promise<Date | null> {
@@ -128,6 +128,35 @@ export class ChatService {
             select: { user: { select: { ...PERSON_SELECT, username: true } } },
         });
         return { ...serializeChat(chat, []), members: members.map(({ user }) => user) };
+    }
+
+    /**
+     * One page of a chat's members in join order (the order admin is handed over in).
+     * Only checks the caller's own membership instead of loading every member first.
+     */
+    async getMembers(me: string, chatId: unknown, query: Record<string, unknown>) {
+        const page = CursorPagination.parse(query, { defaultTake: MEMBERS_PAGE_SIZE, maxTake: MEMBERS_PAGE_MAX });
+        const chat = isValidId(chatId)
+            ? await this.prisma.chats.findFirst({
+                  where: { id: chatId, members: { some: { user_id: me } } },
+                  select: { id: true, creator_id: true, _count: { select: { members: true } } },
+              })
+            : null;
+        if (!chat) throw new NotFoundException("Chat not found");
+
+        const rows = await this.prisma.chat_members.findMany({
+            where: { chat_id: chat.id },
+            orderBy: MEMBER_ORDER,
+            // The cursor is a member's user id; their row is unique per chat
+            ...page.args((userId) => ({ chat_id_user_id: { chat_id: chat.id, user_id: userId } })),
+            select: { joined_at: true, user: { select: { ...PERSON_SELECT, username: true } } },
+        });
+
+        const { rows: members, pagination } = page.result(rows, (row) => row.user.id, { total: chat._count.members });
+        return {
+            members: members.map(({ user, joined_at }) => ({ ...user, joined_at, is_admin: user.id === chat.creator_id })),
+            pagination,
+        };
     }
 
     /** Deletes a 1:1 chat (any member) or a group (admin only), with its messages and files. */

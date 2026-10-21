@@ -57,6 +57,9 @@ export const GROUP_NAME_MAX = 50;
 export const GROUP_DESCRIPTION_MAX = 200;
 export const GROUP_MIN_MEMBERS = 3;
 export const GROUP_MAX_MEMBERS = 15;
+/** GET /chat/:id/members page size (default and max). */
+export const MEMBERS_PAGE_SIZE = 20;
+export const MEMBERS_PAGE_MAX = 50;
 
 /** Max length of a search term (chat and user search). */
 export const SEARCH_MAX = 50;
@@ -65,6 +68,7 @@ export const SEARCH_MAX = 50;
 
 export const MESSAGE_MAX = 4000;
 export const MESSAGES_PAGE_SIZE = 20;
+export const MESSAGES_PAGE_MAX = 50;
 /** How long after sending the sender can still edit a message. */
 export const MESSAGE_EDIT_WINDOW_MS = 15 * 60 * 1000;
 /** Max chats a message can be forwarded to at once. */

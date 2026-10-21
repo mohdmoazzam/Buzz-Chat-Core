@@ -2,14 +2,21 @@ import { applyDecorators, type INestApplication } from "@nestjs/common";
 import { ApiQuery, DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { ADMIN_COOKIE, AUTH_COOKIE } from "./constants";
 
-/** Documents the query params read by parsePagination, plus the optional search term. */
-export const PaginationQuery = (orderFields: string[]) =>
+/**
+ * Documents the query params read by CursorPagination.parse. With `orderFields` it also documents
+ * order_by / order and the optional search term (lists with a fixed order pass none).
+ */
+export const PaginationQuery = (orderFields?: string[]) =>
     applyDecorators(
-        ApiQuery({ name: "page", required: false, type: Number, example: 1 }),
+        ApiQuery({ name: "cursor", required: false, type: String, description: "pagination.next_cursor from the previous page" }),
         ApiQuery({ name: "take", required: false, type: Number, example: 20 }),
-        ApiQuery({ name: "order_by", required: false, enum: orderFields }),
-        ApiQuery({ name: "order", required: false, enum: ["asc", "desc"] }),
-        ApiQuery({ name: "search", required: false, type: String }),
+        ...(orderFields
+            ? [
+                  ApiQuery({ name: "order_by", required: false, enum: orderFields }),
+                  ApiQuery({ name: "order", required: false, enum: ["asc", "desc"] }),
+                  ApiQuery({ name: "search", required: false, type: String }),
+              ]
+            : []),
     );
 
 export const SWAGGER_PATH = "api/docs";
