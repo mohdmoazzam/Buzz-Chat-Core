@@ -6,7 +6,7 @@ import type { AuthUser } from "../user/user.serializer";
 import { MessageService } from "./message.service";
 
 @ApiTags("Messages")
-@Controller("chat/:id/messages")
+@Controller("chat/:chatId/messages")
 export class MessageController extends AuthenticatedController {
     constructor(private readonly messages: MessageService) {
         super();
@@ -14,21 +14,21 @@ export class MessageController extends AuthenticatedController {
 
     @Post()
     @HttpCode(200)
-    async sendAttachments(@CurrentUser() user: AuthUser, @Param("id") chatId: string, @Body("attachment_ids") attachmentIds: unknown) {
+    async sendAttachments(@CurrentUser() user: AuthUser, @Param("chatId") chatId: string, @Body("attachment_ids") attachmentIds: unknown) {
         const message = await this.messages.sendAttachments(user, chatId, attachmentIds);
         return { success: true, message };
     }
 
     @Get()
     @ApiQuery({ name: "page", required: false, type: Number })
-    async getMessages(@CurrentUser() user: AuthUser, @Param("id") id: string, @Query("page") page?: string) {
-        return { success: true, ...(await this.messages.getMessages(user.id, id, page)) };
+    async getMessages(@CurrentUser() user: AuthUser, @Param("chatId") chatId: string, @Query("page") page?: string) {
+        return { success: true, ...(await this.messages.getMessages(user.id, chatId, page)) };
     }
 
     @Patch(":messageId")
     async editMessage(
         @CurrentUser() user: AuthUser,
-        @Param("id") chatId: string,
+        @Param("chatId") chatId: string,
         @Param("messageId") messageId: string,
         @Body("content") content: unknown,
     ) {
@@ -37,7 +37,7 @@ export class MessageController extends AuthenticatedController {
     }
 
     @Delete(":messageId")
-    async deleteMessage(@CurrentUser() user: AuthUser, @Param("id") chatId: string, @Param("messageId") messageId: string) {
+    async deleteMessage(@CurrentUser() user: AuthUser, @Param("chatId") chatId: string, @Param("messageId") messageId: string) {
         const message = await this.messages.deleteForEveryone(user.id, chatId, messageId);
         return { success: true, message };
     }
@@ -46,7 +46,7 @@ export class MessageController extends AuthenticatedController {
     @HttpCode(200)
     async forwardMessage(
         @CurrentUser() user: AuthUser,
-        @Param("id") chatId: string,
+        @Param("chatId") chatId: string,
         @Param("messageId") messageId: string,
         @Body("chat_ids") chatIds: unknown,
     ) {

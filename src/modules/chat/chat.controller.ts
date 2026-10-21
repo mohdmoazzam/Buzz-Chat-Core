@@ -73,7 +73,7 @@ export class ChatController extends AuthenticatedController {
 
     @Post(":id/members")
     async addMembers(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() body: AddMembersBody) {
-        await this.groups.addMembers(user.id, { members: body.members, chat_id: id });
+        await this.groups.addMembers(user.id, id, body.members);
         return { success: true, message: "Members added successfully" };
     }
 
@@ -87,7 +87,7 @@ export class ChatController extends AuthenticatedController {
     @Delete(":id/members/:userId")
     @ApiParam({ name: "userId", format: "uuid" })
     async removeMember(@CurrentUser() user: AuthUser, @Param("id") id: string, @Param("userId") userId: string) {
-        await this.groups.removeMember(user.id, { chat_id: id, user_id: userId });
+        await this.groups.removeMember(user.id, id, userId);
         return { success: true, message: "Member removed successfully" };
     }
 }

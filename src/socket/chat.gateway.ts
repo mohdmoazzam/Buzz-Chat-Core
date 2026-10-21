@@ -17,9 +17,11 @@ import { RealtimeService, userRoom } from "../core/realtime.service";
 import { TokenService } from "../core/token.service";
 import { ChatAccess, memberIdsOf } from "../modules/chat/chat.access";
 import { ReadStateService } from "../modules/chat/read-state.service";
-import { MessageService, type MessageSender } from "../modules/message/message.service";
+import type { MessageSender } from "../modules/message/message.serializer";
+import { MessageService } from "../modules/message/message.service";
 import { CHAT_JOINED, CHAT_LEAVED, CHAT_READ, NEW_MESSAGE, START_TYPING, STOP_TYPING } from "./events";
 import { PresenceService } from "./presence.service";
+import { NAME_SELECT } from "../modules/user/user.serializer";
 
 type SocketUser = MessageSender;
 
@@ -138,7 +140,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
         const user = await this.prisma.users.findUnique({
             where: { id: userId },
-            select: { id: true, first_name: true, last_name: true },
+            select: NAME_SELECT,
         });
         if (!user) throw new Error("user not found");
 

@@ -12,5 +12,11 @@ export type AuthUser = Prisma.usersGetPayload<typeof USER_VIEW>;
 /** Drops the password hash from a user loaded with it (login). */
 export const serializeUser = ({ password: _password, ...user }: users & { avatar: AuthUser["avatar"] }): AuthUser => user;
 
+/** Columns needed to name a person (message senders, alerts, notifications). */
+export const NAME_SELECT = { id: true, first_name: true, last_name: true } as const;
+
+/** A user loaded with NAME_SELECT. */
+export type UserName = Prisma.usersGetPayload<{ select: typeof NAME_SELECT }>;
+
 /** Columns needed to show a person in lists (name + avatar). */
-export const PERSON_SELECT = { id: true, first_name: true, last_name: true, avatar: AVATAR_SELECT } as const;
+export const PERSON_SELECT = { ...NAME_SELECT, avatar: AVATAR_SELECT } as const;

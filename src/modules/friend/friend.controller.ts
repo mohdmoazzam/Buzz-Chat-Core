@@ -29,8 +29,8 @@ export class FriendController extends AuthenticatedController {
     // Friend requests
 
     @Get("friend-requests")
-    async getNotifications(@CurrentUser() user: AuthUser) {
-        return { success: true, data: await this.friends.getNotifications(user.id) };
+    async getPendingRequests(@CurrentUser() user: AuthUser) {
+        return { success: true, data: await this.friends.getPendingRequests(user.id) };
     }
 
     @Post("friend-requests")

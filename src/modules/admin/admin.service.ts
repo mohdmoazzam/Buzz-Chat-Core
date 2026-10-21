@@ -1,12 +1,10 @@
 import { Injectable } from "@nestjs/common";
-import { createHash, timingSafeEqual } from "crypto";
+import { secretsMatch } from "../../common/utils/crypto";
 import { config } from "../../config/env";
 import { PrismaService } from "../../core/prisma.service";
 import { groupAvatar, MEMBER_ORDER } from "../chat/chat.access";
-import { ATTACHMENTS_INCLUDE, withAssets } from "../message/message.service";
+import { ATTACHMENTS_INCLUDE, withAssets } from "../message/message.serializer";
 import { PERSON_SELECT } from "../user/user.serializer";
-
-const sha256 = (value: string) => createHash("sha256").update(value).digest();
 
 const PERSON = { select: PERSON_SELECT } as const;
 
@@ -16,7 +14,7 @@ export class AdminService {
 
     isAdminKey(secretKey: unknown): boolean {
         const expected = config.adminSecretKey;
-        return !!expected && typeof secretKey === "string" && timingSafeEqual(sha256(secretKey), sha256(expected));
+        return !!expected && typeof secretKey === "string" && secretsMatch(secretKey, expected);
     }
 
     async getAllUsers() {

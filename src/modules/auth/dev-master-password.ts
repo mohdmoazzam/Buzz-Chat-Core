@@ -1,6 +1,6 @@
-import { createHash, timingSafeEqual } from "crypto";
 import type { Request } from "express";
 import { DEV_MASTER_PASSWORD_MIN_LENGTH } from "../../common/constants";
+import { secretsMatch } from "../../common/utils/crypto";
 
 // DEV ONLY: a master password that logs in as any user.
 // Active only when ALL of these hold:
@@ -19,11 +19,9 @@ const LOOPBACK = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
 // Uses the raw socket address, not X-Forwarded-For, so proxies can't spoof it
 const isLocalRequest = (req: Request): boolean => LOOPBACK.has(req.socket?.remoteAddress ?? "");
 
-const sha256 = (value: string) => createHash("sha256").update(value).digest();
-
 export const isDevMasterLogin = (req: Request, password: unknown): boolean => {
     if (!isDevMasterPasswordEnabled() || !isLocalRequest(req) || typeof password !== "string" || !password) {
         return false;
     }
-    return timingSafeEqual(sha256(password), sha256(process.env.DEV_MASTER_PASSWORD as string));
+    return secretsMatch(password, process.env.DEV_MASTER_PASSWORD as string);
 };

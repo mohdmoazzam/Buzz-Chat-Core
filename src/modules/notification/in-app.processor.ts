@@ -5,6 +5,7 @@ import { PrismaService } from "../../core/prisma.service";
 import { RealtimeService } from "../../core/realtime.service";
 import { NEW_NOTIFICATION } from "../../socket/events";
 import { fullName } from "../user/user.names";
+import { NAME_SELECT } from "../user/user.serializer";
 import { renderInApp } from "./in-app.templates";
 import { NOTIFICATION_INCLUDE, serializeNotification } from "./notification.serializer";
 import { IN_APP_QUEUE, type InAppJob } from "./notification.types";
@@ -24,9 +25,7 @@ export class InAppProcessor extends WorkerHost {
     async process(job: Job<InAppJob>): Promise<void> {
         const { id, user_id, actor_id, type, data } = job.data;
 
-        const actor = actor_id
-            ? await this.prisma.users.findUnique({ where: { id: actor_id }, select: { first_name: true, last_name: true } })
-            : null;
+        const actor = actor_id ? await this.prisma.users.findUnique({ where: { id: actor_id }, select: NAME_SELECT }) : null;
         const { title, body } = renderInApp(type, data, actor ? fullName(actor) : "Someone");
 
         // The id comes from the job, so a retry after a partial failure doesn't insert twice

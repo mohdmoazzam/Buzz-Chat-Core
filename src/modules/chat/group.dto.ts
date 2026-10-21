@@ -33,13 +33,7 @@ export class CreateGroupDto {
 }
 
 export interface AddMembersBody {
-    chat_id?: unknown;
     members?: unknown;
-}
-
-export interface RemoveMemberBody {
-    chat_id?: unknown;
-    user_id?: unknown;
 }
 
 export interface UpdateGroupBody {

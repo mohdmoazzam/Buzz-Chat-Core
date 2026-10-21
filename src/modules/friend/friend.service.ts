@@ -11,7 +11,7 @@ import { NEW_REQUEST, REFETCH_CHATS } from "../../socket/events";
 import { ChatAccess } from "../chat/chat.access";
 import { NotificationService } from "../notification/notification.service";
 import { fullName } from "../user/user.names";
-import { PERSON_SELECT } from "../user/user.serializer";
+import { NAME_SELECT, PERSON_SELECT } from "../user/user.serializer";
 
 // "name" sorts by first name, then last name
 const USER_SEARCH_PAGINATION = {
@@ -136,10 +136,9 @@ export class FriendService {
             throw new BadRequestException("Invalid request");
         }
 
-        const nameSelect = { select: { id: true, first_name: true, last_name: true } } as const;
         const friendRequest = await this.prisma.friend_requests.findUnique({
             where: { id: requestId },
-            include: { sender: nameSelect, receiver: nameSelect },
+            include: { sender: { select: NAME_SELECT }, receiver: { select: NAME_SELECT } },
         });
 
         // Only the receiver may respond; everyone else gets the same "not found"
@@ -186,7 +185,7 @@ export class FriendService {
     }
 
     /** Pending friend requests sent to the current user. */
-    async getNotifications(me: string) {
+    async getPendingRequests(me: string) {
         return this.prisma.friend_requests.findMany({
             where: { receiver_id: me },
             orderBy: { created_at: "desc" },

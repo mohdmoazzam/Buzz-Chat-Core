@@ -4,26 +4,10 @@ import { areValidIds, isValidId, toIdList } from "../../common/utils/ids";
 import { PrismaService } from "../../core/prisma.service";
 import { RealtimeService } from "../../core/realtime.service";
 import { MESSAGE_DELETED, MESSAGE_UPDATED, NEW_MESSAGE, NEW_MESSAGE_ALERT } from "../../socket/events";
-import { ASSET_SELECT, AssetsService } from "../assets/assets.service";
+import { AssetsService } from "../assets/assets.service";
 import { ChatAccess, memberIdsOf, type ChatWithMemberIds } from "../chat/chat.access";
 import { ReadStateService } from "../chat/read-state.service";
-
-/** The sender as embedded in messages: id and name columns. */
-export type MessageSender = { id: string; first_name: string; last_name: string };
-
-const SENDER_SELECT = { id: true, first_name: true, last_name: true } as const;
-
-/** Attachments in the order they were sent, as asset records. */
-export const ATTACHMENTS_INCLUDE = { orderBy: { position: "asc" }, select: { asset: { select: ASSET_SELECT } } } as const;
-
-/** A message as sent to clients: with its sender and attachments. */
-const MESSAGE_INCLUDE = { sender: { select: SENDER_SELECT }, attachments: ATTACHMENTS_INCLUDE } as const;
-
-/** Flattens message_attachments rows into the list of attached assets. */
-export const withAssets = <T extends { attachments: { asset: unknown }[] }>(message: T) => ({
-    ...message,
-    attachments: message.attachments.map((attachment) => attachment.asset),
-});
+import { ATTACHMENTS_INCLUDE, MESSAGE_INCLUDE, withAssets, type MessageSender } from "./message.serializer";
 
 interface CreateMessageInput {
     chatId: string;

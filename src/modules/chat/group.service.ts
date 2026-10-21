@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { GROUP_DESCRIPTION_MAX, GROUP_MAX_MEMBERS, GROUP_MIN_MEMBERS, GROUP_NAME_MAX } from "../../common/constants";
 import { areValidIds, isValidId, toIdList } from "../../common/utils/ids";
 import { PrismaService } from "../../core/prisma.service";
 import { RealtimeService } from "../../core/realtime.service";
@@ -7,12 +8,9 @@ import { AssetsService } from "../assets/assets.service";
 import { NotificationService } from "../notification/notification.service";
 import { ALERT, REFETCH_CHATS } from "../../socket/events";
 import { fullName } from "../user/user.names";
-import { AVATAR_SELECT } from "../user/user.serializer";
+import { AVATAR_SELECT, NAME_SELECT } from "../user/user.serializer";
 import { ChatAccess, groupAvatar, MEMBER_ORDER, memberIdsOf } from "./chat.access";
-import { GROUP_DESCRIPTION_MAX, GROUP_MAX_MEMBERS, GROUP_MIN_MEMBERS, GROUP_NAME_MAX } from "../../common/constants";
-import type { AddMembersBody, CreateGroupDto, RemoveMemberBody, UpdateGroupBody } from "./group.dto";
-
-const NAME_SELECT = { first_name: true, last_name: true } as const;
+import type { CreateGroupDto, UpdateGroupBody } from "./group.dto";
 
 @Injectable()
 export class GroupService {
@@ -39,15 +37,7 @@ export class GroupService {
         if (members.length + 1 < GROUP_MIN_MEMBERS) {
             throw new BadRequestException(`Group chat must have at least ${GROUP_MIN_MEMBERS} members`);
         }
-        if (members.length + 1 > GROUP_MAX_MEMBERS) {
-            throw new BadRequestException(`A group can have at most ${GROUP_MAX_MEMBERS} members`);
-        }
-
-        // Only friends can be added, so groups can't be used to spam strangers
-        const friendIds = await this.access.getFriendIds(me);
-        if (!members.every((id) => friendIds.has(id))) {
-            throw new ForbiddenException("You can only add your friends to a group");
-        }
+        await this.assertCanAdd(me, members, members.length + 1);
 
         // Group picture, uploaded first via POST /assets
         if (dto.avatar_id) {
@@ -98,13 +88,13 @@ export class GroupService {
         }));
     }
 
-    async addMembers(me: string, body: AddMembersBody): Promise<void> {
-        const requested = toIdList(body.members);
+    async addMembers(me: string, chatId: unknown, rawMembers: unknown): Promise<void> {
+        const requested = toIdList(rawMembers);
         if (!requested.length || !areValidIds(requested)) {
             throw new BadRequestException("Please select valid members");
         }
 
-        const chat = await this.access.findForMember(body.chat_id, me);
+        const chat = await this.access.findForMember(chatId, me);
         this.access.assertGroupCreator(chat, me, "add members");
 
         const current = memberIdsOf(chat);
@@ -112,14 +102,7 @@ export class GroupService {
         if (!newIds.length) {
             throw new BadRequestException("Everyone selected is already in the group");
         }
-        if (current.length + newIds.length > GROUP_MAX_MEMBERS) {
-            throw new BadRequestException(`A group can have at most ${GROUP_MAX_MEMBERS} members`);
-        }
-
-        const friendIds = await this.access.getFriendIds(me);
-        if (!newIds.every((id) => friendIds.has(id))) {
-            throw new ForbiddenException("You can only add your friends to a group");
-        }
+        await this.assertCanAdd(me, newIds, current.length + newIds.length);
 
         const newUsers = await this.prisma.users.findMany({ where: { id: { in: newIds } }, select: NAME_SELECT });
         if (newUsers.length !== newIds.length) {
@@ -142,13 +125,12 @@ export class GroupService {
         await this.notifications.inApp(newIds, "group_added", { chat_id: chat.id, group_name: chat.name }, me);
     }
 
-    async removeMember(me: string, body: RemoveMemberBody): Promise<void> {
-        const { user_id: userId } = body;
+    async removeMember(me: string, chatId: unknown, userId: unknown): Promise<void> {
         if (!isValidId(userId)) {
             throw new BadRequestException("Invalid user");
         }
 
-        const chat = await this.access.findForMember(body.chat_id, me);
+        const chat = await this.access.findForMember(chatId, me);
         this.access.assertGroupCreator(chat, me, "remove members");
 
         const allMembersBefore = memberIdsOf(chat);
@@ -230,6 +212,17 @@ export class GroupService {
 
         this.realtime.emitToUsers(memberIdsOf(chat), REFETCH_CHATS);
         return updated;
+    }
+
+    /** Rules for adding people to a group: the size cap, and friends only (so groups can't be used to spam strangers). */
+    private async assertCanAdd(me: string, newIds: string[], groupSizeAfter: number): Promise<void> {
+        if (groupSizeAfter > GROUP_MAX_MEMBERS) {
+            throw new BadRequestException(`A group can have at most ${GROUP_MAX_MEMBERS} members`);
+        }
+        const friendIds = await this.access.getFriendIds(me);
+        if (!newIds.every((id) => friendIds.has(id))) {
+            throw new ForbiddenException("You can only add your friends to a group");
+        }
     }
 
     private async memberIds(chatId: string): Promise<string[]> {
