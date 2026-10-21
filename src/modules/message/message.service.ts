@@ -8,7 +8,7 @@ import { MESSAGE_DELETED, MESSAGE_UPDATED, NEW_MESSAGE, NEW_MESSAGE_ALERT } from
 import { AssetsService } from "../assets/assets.service";
 import { ChatAccess, memberIdsOf, type ChatWithMemberIds } from "../chat/chat.access";
 import { ReadStateService } from "../chat/read-state.service";
-import { ATTACHMENTS_INCLUDE, MESSAGE_INCLUDE, withAssets, type MessageSender } from "./message.serializer";
+import { ATTACHMENTS_INCLUDE, MESSAGE_INCLUDE, REPLY_TO_INCLUDE, withAssets, type MessageSender } from "./message.serializer";
 
 interface CreateMessageInput {
     chatId: string;
@@ -18,6 +18,8 @@ interface CreateMessageInput {
     /** Asset ids, already checked with AssetsService.assertUsable (or taken from a message being forwarded) */
     attachmentIds?: string[];
     forwarded?: boolean;
+    /** The message this one replies to (any id the client sent: checked here) */
+    replyToId?: unknown;
 }
 
 @Injectable()
@@ -35,7 +37,16 @@ export class MessageService {
      * Used by both the socket (text) and HTTP (attachments, forwards) paths so they behave the same.
      * Returns the message with its sender and attachments, as sent to clients.
      */
-    async createAndDeliver({ chatId, memberIds, sender, content = "", attachmentIds = [], forwarded = false }: CreateMessageInput) {
+    async createAndDeliver({
+        chatId,
+        memberIds,
+        sender,
+        content = "",
+        attachmentIds = [],
+        forwarded = false,
+        replyToId,
+    }: CreateMessageInput) {
+        const replyTo = await this.findReplyTarget(chatId, replyToId);
         // Persist first so the broadcast carries the real id and timestamp
         const [row] = await this.prisma.$transaction([
             this.prisma.messages.create({
@@ -44,9 +55,10 @@ export class MessageService {
                     forwarded,
                     sender_id: sender.id,
                     chat_id: chatId,
+                    reply_to_id: replyTo,
                     attachments: { create: attachmentIds.map((asset_id, position) => ({ asset_id, position })) },
                 },
-                include: { attachments: ATTACHMENTS_INCLUDE },
+                include: { attachments: ATTACHMENTS_INCLUDE, reply_to: REPLY_TO_INCLUDE },
             }),
             this.access.touch(chatId),
         ]);
@@ -91,11 +103,11 @@ export class MessageService {
     }
 
     /** Sends files that were uploaded first via POST /assets. */
-    async sendAttachments(sender: MessageSender, chatId: unknown, attachmentIds: string[]) {
+    async sendAttachments(sender: MessageSender, chatId: unknown, attachmentIds: string[], replyToId?: string) {
         const chat = await this.access.findForMember(chatId, sender.id);
         await this.assets.assertUsable(attachmentIds, sender.id);
 
-        return this.createAndDeliver({ chatId: chat.id, memberIds: memberIdsOf(chat), sender, attachmentIds });
+        return this.createAndDeliver({ chatId: chat.id, memberIds: memberIdsOf(chat), sender, attachmentIds, replyToId });
     }
 
     /** Replaces the text of the user's own message, within MESSAGE_EDIT_WINDOW_MS of sending it. */
@@ -123,6 +135,21 @@ export class MessageService {
         return updated;
     }
 
+    /**
+     * The id to store as reply_to_id: the quoted message must be in the same chat and not deleted.
+     * Undefined when the message isn't a reply.
+     */
+    private async findReplyTarget(chatId: string, replyToId: unknown): Promise<string | undefined> {
+        if (replyToId === undefined || replyToId === null || replyToId === "") return undefined;
+        const target = isValidId(replyToId)
+            ? await this.prisma.messages.findFirst({ where: { id: replyToId, chat_id: chatId }, select: { id: true, deleted_at: true } })
+            : null;
+        if (!target || target.deleted_at) {
+            throw new BadRequestException("The message you're replying to isn't available any more");
+        }
+        return target.id;
+    }
+
     /** Deletes the user's own message for everyone: the row stays as a "deleted" placeholder. */
     async deleteForEveryone(me: string, chatId: unknown, messageId: unknown) {
         const chat = await this.access.findForMember(chatId, me);
@@ -136,7 +163,7 @@ export class MessageService {
             this.prisma.message_attachments.deleteMany({ where: { message_id: message.id } }),
             this.prisma.messages.update({
                 where: { id: message.id },
-                data: { content: "", deleted_at: new Date() },
+                data: { content: "", deleted_at: new Date(), reply_to_id: null },
                 include: MESSAGE_INCLUDE,
             }),
         ]);

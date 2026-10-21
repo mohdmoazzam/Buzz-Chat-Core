@@ -59,6 +59,12 @@ export class NotificationInboxService {
         return count;
     }
 
+    /** Deletes all of the user's notifications; returns how many. */
+    async removeAll(me: string): Promise<number> {
+        const { count } = await this.prisma.notifications.deleteMany({ where: { user_id: me } });
+        return count;
+    }
+
     async remove(me: string, id: unknown): Promise<void> {
         if (!isValidId(id)) throw new BadRequestException("Invalid notification");
         const { count } = await this.prisma.notifications.deleteMany({ where: { id, user_id: me } });

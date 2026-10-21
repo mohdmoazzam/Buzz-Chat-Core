@@ -70,6 +70,26 @@ export class ResetPasswordDto extends ForgotPasswordDto {
     password!: string;
 }
 
+export class GoogleSignInDto {
+    @ApiProperty({ description: "The ID token (credential) from Google Identity Services" })
+    @IsString()
+    @IsNotEmpty()
+    @MaxLength(4096)
+    credential!: string;
+}
+
+export class ChangePasswordDto {
+    @ApiProperty({ format: "password" })
+    @IsString()
+    @IsNotEmpty()
+    current_password!: string;
+
+    @ApiProperty({ format: "password", minLength: PASSWORD_MIN, maxLength: PASSWORD_MAX })
+    @IsString()
+    @Length(PASSWORD_MIN, PASSWORD_MAX)
+    new_password!: string;
+}
+
 export class VerifyEmailDto {
     @ApiProperty({ pattern: "^[0-9]{6}$", example: "123456" })
     @Trim()

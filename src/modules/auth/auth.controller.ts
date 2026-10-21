@@ -7,8 +7,9 @@ import { RateLimit } from "../../common/guards/rate-limit.guard";
 import { SessionService } from "../../core/session.service";
 import { TokenService } from "../../core/token.service";
 import type { AuthUser } from "../user/user.serializer";
-import { ForgotPasswordDto, LoginDto, RegisterDto, ResetPasswordDto } from "./auth.dto";
+import { ForgotPasswordDto, GoogleSignInDto, LoginDto, RegisterDto, ResetPasswordDto } from "./auth.dto";
 import { AuthService } from "./auth.service";
+import { GoogleAuthService } from "./google-auth.service";
 import { PasswordResetService } from "./password-reset.service";
 
 @ApiTags("Auth")
@@ -19,6 +20,7 @@ export class AuthController {
         private readonly tokens: TokenService,
         private readonly sessions: SessionService,
         private readonly passwordReset: PasswordResetService,
+        private readonly google: GoogleAuthService,
     ) {}
 
     @Post("register")
@@ -35,6 +37,15 @@ export class AuthController {
     async login(@Body() dto: LoginDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
         const user = await this.auth.login(dto, req);
         return this.startSession(req, res, user, `Welcome back, ${user.first_name}`);
+    }
+
+    // Log in or sign up with a Google ID token (Google Identity Services)
+    @Post("google")
+    @HttpCode(200)
+    @RateLimit(20, 15, TRY_LATER)
+    async googleSignIn(@Body() dto: GoogleSignInDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
+        const { user, created } = await this.google.signIn(dto.credential);
+        return this.startSession(req, res, user, created ? "Account created" : `Welcome back, ${user.first_name}`);
     }
 
     @Post("forgot-password")

@@ -17,7 +17,7 @@ export class MessageController extends AuthenticatedController {
     @Post()
     @HttpCode(200)
     async sendAttachments(@CurrentUser() user: AuthUser, @Param("chatId") chatId: string, @Body() dto: SendAttachmentsDto) {
-        const message = await this.messages.sendAttachments(user, chatId, dto.attachment_ids);
+        const message = await this.messages.sendAttachments(user, chatId, dto.attachment_ids, dto.reply_to_id);
         return { success: true, message };
     }
 

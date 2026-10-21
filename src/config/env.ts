@@ -58,6 +58,9 @@ export const config = Object.freeze({
         apiSecret: process.env.CLOUDINARY_API_SECRET ?? "",
     },
 
+    // Sign in with Google: the OAuth web client id ID tokens must be issued for (empty = turned off)
+    googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
+
     // Links in emails point here
     appUrl: parseOrigins(process.env.APP_URL)[0] ?? "https://buzzchatapp.vercel.app",
 

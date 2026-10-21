@@ -44,6 +44,20 @@ export class StorageService {
         }
     }
 
+    /** Copies an image from a public URL (e.g. a Google profile photo) into storage. */
+    async uploadFromUrl(url: string): Promise<StoredFile> {
+        if (!this.isConfigured) {
+            throw new HttpException("File uploads are not configured on the server", HttpStatus.SERVICE_UNAVAILABLE);
+        }
+        try {
+            const res = await cloudinary.uploader.upload(url, { resource_type: "image", public_id: randomUUID() });
+            return { public_id: res.public_id, url: res.secure_url, resource_type: res.resource_type };
+        } catch (error) {
+            this.logger.error(`Cloudinary upload from URL failed: ${(error as Error)?.message ?? error}`);
+            throw new HttpException("Failed to upload file. Please try again.", HttpStatus.BAD_GATEWAY);
+        }
+    }
+
     /**
      * Deletes files without making the caller wait (cleanup can be slow).
      * Cloudinary deletes are per resource type; try each so videos/audio are removed too.
