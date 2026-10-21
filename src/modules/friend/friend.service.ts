@@ -100,7 +100,10 @@ export class FriendService {
         }
 
         const [target, existingRequest, existingChat] = await Promise.all([
-            this.prisma.users.findUnique({ where: { id: userId }, select: { id: true } }),
+            this.prisma.users.findUnique({
+                where: { id: userId },
+                select: { id: true },
+            }),
             this.prisma.friend_requests.findFirst({
                 where: {
                     OR: [
@@ -110,7 +113,10 @@ export class FriendService {
                 },
                 select: { id: true },
             }),
-            this.prisma.chats.findUnique({ where: { direct_key: directChatKey(me, userId) }, select: { id: true } }),
+            this.prisma.chats.findUnique({
+                where: { direct_key: directChatKey(me, userId) },
+                select: { id: true },
+            }),
         ]);
 
         if (!target) throw new NotFoundException("User not found");
@@ -118,7 +124,12 @@ export class FriendService {
         if (existingRequest) throw new ConflictException("Request already sent");
 
         try {
-            await this.prisma.friend_requests.create({ data: { sender_id: me, receiver_id: userId } });
+            await this.prisma.friend_requests.create({
+                data: {
+                    sender_id: me,
+                    receiver_id: userId,
+                },
+            });
         } catch (error) {
             if (isUniqueViolation(error)) throw new ConflictException("Request already sent");
             throw error;
@@ -135,7 +146,10 @@ export class FriendService {
 
         const friendRequest = await this.prisma.friend_requests.findUnique({
             where: { id: requestId },
-            include: { sender: { select: NAME_SELECT }, receiver: { select: NAME_SELECT } },
+            include: {
+                sender: { select: NAME_SELECT },
+                receiver: { select: NAME_SELECT },
+            },
         });
 
         // Only the receiver may respond; everyone else gets the same "not found"
@@ -144,7 +158,9 @@ export class FriendService {
         }
 
         if (!accept) {
-            await this.prisma.friend_requests.delete({ where: { id: friendRequest.id } });
+            await this.prisma.friend_requests.delete({
+                where: { id: friendRequest.id },
+            });
             return null;
         }
 
@@ -152,20 +168,19 @@ export class FriendService {
         const members = [sender.id, receiver.id];
         const directKey = directChatKey(sender.id, receiver.id);
         const [chat] = await this.prisma.$transaction([
-            // direct_key is unique, so accepting twice can never create a second chat
             this.prisma.chats.upsert({
                 where: { direct_key: directKey },
                 update: {},
                 create: {
                     name: `${fullName(sender)}-${fullName(receiver)}`,
                     direct_key: directKey,
-                    // The person who sent the request started the chat
                     creator_id: sender.id,
-                    members: { create: members.map((user_id) => ({ user_id })) },
+                    members: {
+                        create: members.map((user_id) => ({ user_id })),
+                    },
                 },
                 select: { id: true },
             }),
-            // Clear requests in both directions
             this.prisma.friend_requests.deleteMany({
                 where: {
                     OR: [
@@ -178,8 +193,13 @@ export class FriendService {
 
         this.realtime.emitToUsers(members, REFETCH_CHATS);
         await this.notifications
-            .queueNotification("friend_request_accepted", { to: sender.id, data: { chat_id: chat.id }, actorId: me })
+            .queueNotification("friend_request_accepted", {
+                to: sender.id,
+                data: { chat_id: chat.id },
+                actorId: me,
+            })
             .catch(() => undefined);
+
         return sender.id;
     }
 
@@ -195,8 +215,18 @@ export class FriendService {
     /** Friends, optionally excluding those already in `chatId` (for "add members"). */
     async getFriends(me: string, chatId: unknown) {
         const rows = await this.prisma.chat_members.findMany({
-            where: { user_id: { not: me }, chat: { group_chat: false, members: { some: { user_id: me } } } },
-            select: { user: { select: PERSON_SELECT } },
+            where: {
+                user_id: { not: me },
+                chat: {
+                    group_chat: false,
+                    members: {
+                        some: { user_id: me },
+                    },
+                },
+            },
+            select: {
+                user: { select: PERSON_SELECT },
+            },
         });
         const friends = rows.map(({ user }) => user);
 
