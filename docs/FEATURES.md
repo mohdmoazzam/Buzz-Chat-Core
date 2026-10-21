@@ -89,7 +89,7 @@ A pair of users can only ever have one 1:1 chat, enforced by a unique `direct_ke
 | **Mark read (REST)** | `POST /chat/:id/read`: same as the `CHAT_READ` socket event; returns the new `read_at` or `null` if nothing was new. |
 | **Delete chat** | `DELETE /chat/:id`: any member can delete a 1:1 chat; only the admin can delete a group. Messages and their files are removed too. |
 | **Online status** | Contacts see who is online; a user with several tabs or devices stays online until the last one closes. |
-| **Typing indicator** | "is typing…" shown to the other members. |
+| **Typing indicator** | "typing…" in 1:1 chats; in groups the name of who is typing ("Ravi is typing…", "Ravi and Amit are typing…"). `START_TYPING` / `STOP_TYPING` carry `{ chat_id, user_id, first_name }`. |
 
 ## Group chats
 
@@ -100,7 +100,8 @@ A pair of users can only ever have one 1:1 chat, enforced by a unique `direct_ke
 | **Edit group** | `PUT /chat/:id`: name, description, picture (admin only). |
 | **Add members** | `POST /chat/:id/members` (admin only, friends only, max 15). New members get an in-app notification. |
 | **Remove a member** | `DELETE /chat/:id/members/:userId` (admin only). |
-| **Leave a group** | `DELETE /chat/:id/members/me`. |
+| **Group info** | From the group name or the ⋮ menu in a chat: a side panel (full screen on phones) with the picture, description, created date, members (you, admin, online first; search from 7 members; green dot when online), "Manage group" for the admin, and Leave / Delete group. When leaving isn't allowed the panel says why up front. The ⋮ menu also has Leave group and, for the admin, Delete group. |
+| **Leave a group** | `DELETE /chat/:id/members/me`. Not allowed when fewer than 3 members would remain (delete it instead). An admin who leaves hands admin to the longest-standing member. |
 | **System alerts** | "Welcome to …", "X was added", "X left the group" appear live in the chat (`ALERT`). |
 
 The group creator is the admin.
