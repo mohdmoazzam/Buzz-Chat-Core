@@ -1,4 +1,5 @@
 import { HttpException, HttpStatus, Injectable, Logger } from "@nestjs/common";
+import { errorMessage } from "../common/errors";
 import { config } from "../config/env";
 
 const BREVO_SEND_URL = "https://api.brevo.com/v3/smtp/email";
@@ -41,7 +42,7 @@ export class MailService {
                 signal: AbortSignal.timeout(10_000),
             });
         } catch (error) {
-            this.logger.error(`Brevo request failed: ${(error as Error)?.message ?? error}`);
+            this.logger.error(`Brevo request failed: ${errorMessage(error)}`);
             throw new HttpException("Failed to send the email. Please try again.", HttpStatus.BAD_GATEWAY);
         }
         if (!res.ok) {

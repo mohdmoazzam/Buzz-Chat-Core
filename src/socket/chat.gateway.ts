@@ -1,4 +1,5 @@
 import { BadRequestException, Logger } from "@nestjs/common";
+import { errorMessage } from "../common/errors";
 import {
     ConnectedSocket,
     MessageBody,
@@ -103,7 +104,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         } catch (error) {
             // A reply to a message that's gone (deleted or from another chat) is the user's to fix, not a server error
             if (error instanceof BadRequestException) return { ok: false, error: error.message };
-            this.logger.error(`Failed to send message: ${(error as Error).message}`);
+            this.logger.error(`Failed to send message: ${errorMessage(error)}`);
             return { ok: false, error: "Something went wrong. Please try again." };
         }
     }
@@ -176,7 +177,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         try {
             await task();
         } catch (error) {
-            this.logger.error(`Socket handler error: ${(error as Error).message}`);
+            this.logger.error(`Socket handler error: ${errorMessage(error)}`);
         }
     }
 }

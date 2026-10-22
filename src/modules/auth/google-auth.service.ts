@@ -3,7 +3,7 @@ import { hash } from "bcrypt";
 import { randomBytes, randomInt, randomUUID } from "crypto";
 import { OAuth2Client, type TokenPayload } from "google-auth-library";
 import { BCRYPT_ROUNDS, NAME_MAX } from "../../common/constants";
-import { isUniqueViolation } from "../../common/errors";
+import { errorMessage, isUniqueViolation } from "../../common/errors";
 import { config } from "../../config/env";
 import { PrismaService } from "../../core/prisma.service";
 import { StorageService } from "../../core/storage.service";
@@ -79,7 +79,7 @@ export class GoogleAuthService {
             const ticket = await this.client.verifyIdToken({ idToken: credential, audience: config.googleClientId });
             payload = ticket.getPayload();
         } catch (error) {
-            this.logger.warn(`Rejected a Google ID token: ${(error as Error)?.message ?? error}`);
+            this.logger.warn(`Rejected a Google ID token: ${errorMessage(error)}`);
             throw new UnauthorizedException("Google sign-in failed. Please try again.");
         }
         if (!payload?.sub || !payload.email) throw new UnauthorizedException("Google sign-in failed. Please try again.");
@@ -114,8 +114,7 @@ export class GoogleAuthService {
                     ...USER_VIEW,
                 });
                 await this.prisma.assets.update({ where: { id: avatarId }, data: { uploaded_by: user.id } });
-                // Best effort: the account exists either way
-                this.notifications.queueNotification("welcome", { to: user.id, data: {} }).catch(() => undefined);
+                this.notifications.queueInBackground("welcome", { to: user.id, data: {} });
                 return user;
             } catch (error) {
                 // Someone took the username in the meantime: try another; anything else is a real error

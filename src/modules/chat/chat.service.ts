@@ -10,7 +10,7 @@ import { AssetsService } from "../assets/assets.service";
 import { ALERT, DISAPPEARING_UPDATED, REFETCH_CHATS } from "../../socket/events";
 import { fullName } from "../user/user.names";
 import { AVATAR_SELECT, NAME_SELECT, PERSON_SELECT } from "../user/user.serializer";
-import { ChatAccess, groupAvatar, MEMBER_ORDER, memberIdsOf, type ChatWithMemberIds } from "./chat.access";
+import { ChatAccess, groupAvatar, MEMBER_ORDER, memberIdsOf } from "./chat.access";
 import { ReadStateService } from "./read-state.service";
 
 interface LastMessagePreview {
@@ -48,12 +48,6 @@ const CHAT_LIST_PAGINATION = {
     maxTake: 100,
 } satisfies CursorPaginationOptions<"updated_at" | "created_at", "updated_at" | "created_at">;
 
-/** The chat row as stored, with `members` as a list of user ids. */
-const serializeChat = ({ members: _members, ...chat }: ChatWithMemberIds, memberIds: string[]) => ({
-    ...chat,
-    members: memberIds,
-});
-
 @Injectable()
 export class ChatService {
     constructor(
@@ -89,31 +83,38 @@ export class ChatService {
         const chatIds = chats.map((chat) => chat.id);
         const [lastMessages, unread] = await Promise.all([this.getLastMessages(me, chatIds), this.readState.unreadCounts(me, chatIds)]);
 
-        const transformedChats = chats.flatMap((chat) => {
+        const list = chats.flatMap((chat) => {
             const members = chat.members.map((member) => member.user);
-            const otherMember = members.find((member) => member.id !== me);
+            const others = members.filter((member) => member.id !== me);
+            const common = {
+                id: chat.id,
+                group_chat: chat.group_chat,
+                members: others.map((member) => member.id),
+                last_message: lastMessages.get(chat.id) ?? null,
+                unread_count: unread.get(chat.id) ?? 0,
+            };
 
-            if (!chat.group_chat && !otherMember) return [];
+            if (chat.group_chat) {
+                const avatar = groupAvatar(
+                    chat,
+                    members.map((member) => member.avatar.url),
+                );
+                return [{ ...common, name: chat.name, avatar, other_last_seen_at: null }];
+            }
+            // A 1:1 chat is shown as the other person; without them there's nothing to show
+            const other = others[0];
+            if (!other) return [];
             return [
                 {
-                    id: chat.id,
-                    name: chat.group_chat ? chat.name : otherMember && fullName(otherMember),
-                    group_chat: chat.group_chat,
-                    avatar: chat.group_chat
-                        ? groupAvatar(
-                              chat,
-                              members.map((m) => m.avatar.url),
-                          )
-                        : [otherMember?.avatar.url],
-                    members: members.filter((m) => m.id !== me).map((m) => m.id),
-                    other_last_seen_at: !chat.group_chat ? (otherMember?.last_seen_at?.toISOString() ?? null) : null,
-                    last_message: lastMessages.get(chat.id) ?? null,
-                    unread_count: unread.get(chat.id) ?? 0,
+                    ...common,
+                    name: fullName(other),
+                    avatar: [other.avatar.url],
+                    other_last_seen_at: other.last_seen_at?.toISOString() ?? null,
                 },
             ];
         });
 
-        return { chats: transformedChats, pagination };
+        return { chats: list, pagination };
     }
 
     async markRead(me: string, chatId: unknown): Promise<Date | null> {
@@ -125,16 +126,17 @@ export class ChatService {
         return this.readState.totalUnread(me);
     }
 
+    /** The chat row; `members` is their ids, or with `populate` their profiles. */
     async getChatDetails(me: string, chatId: unknown, populate: boolean) {
-        const chat = await this.access.findForMember(chatId, me);
-        if (!populate) return serializeChat(chat, memberIdsOf(chat));
+        const { members, ...chat } = await this.access.findForMember(chatId, me);
+        if (!populate) return { ...chat, members: members.map((member) => member.user_id) };
 
-        const members = await this.prisma.chat_members.findMany({
+        const rows = await this.prisma.chat_members.findMany({
             where: { chat_id: chat.id },
             orderBy: MEMBER_ORDER,
             select: { user: { select: { ...PERSON_SELECT, username: true } } },
         });
-        return { ...serializeChat(chat, []), members: members.map(({ user }) => user) };
+        return { ...chat, members: rows.map(({ user }) => user) };
     }
 
     /**

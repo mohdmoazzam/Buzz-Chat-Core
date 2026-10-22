@@ -1,9 +1,11 @@
 import { Processor, WorkerHost } from "@nestjs/bullmq";
+import { errorMessage } from "../../../common/errors";
 import { Logger } from "@nestjs/common";
 import type { Job } from "bullmq";
 import { PrismaService } from "../../../core/prisma.service";
 import { RealtimeService } from "../../../core/realtime.service";
 import { MESSAGE_UPDATED } from "../../../socket/events";
+import { ChatAccess } from "../../chat/chat.access";
 import { MESSAGE_INCLUDE, withAssets } from "../message.serializer";
 import { fetchLinkPreview, firstUrl, LINK_PREVIEW_QUEUE, type LinkPreviewJob } from "./link-preview.fetcher";
 
@@ -18,6 +20,7 @@ export class LinkPreviewProcessor extends WorkerHost {
     constructor(
         private readonly prisma: PrismaService,
         private readonly realtime: RealtimeService,
+        private readonly access: ChatAccess,
     ) {
         super();
     }
@@ -35,7 +38,7 @@ export class LinkPreviewProcessor extends WorkerHost {
             preview = await fetchLinkPreview(url);
         } catch (error) {
             // Unreachable, not public, not HTML, timed out: no card, and not worth retrying
-            this.logger.debug(`No preview for ${url}: ${(error as Error)?.message ?? error}`);
+            this.logger.debug(`No preview for ${url}: ${errorMessage(error)}`);
             return;
         }
         if (!preview) return;
@@ -47,14 +50,10 @@ export class LinkPreviewProcessor extends WorkerHost {
         });
         if (!count) return;
 
-        const [row, members] = await Promise.all([
+        const [row, memberIds] = await Promise.all([
             this.prisma.messages.findUniqueOrThrow({ where: { id: message.id }, include: MESSAGE_INCLUDE }),
-            this.prisma.chat_members.findMany({ where: { chat_id: message.chat_id }, select: { user_id: true } }),
+            this.access.memberIds(message.chat_id),
         ]);
-        this.realtime.emitToUsers(
-            members.map((member) => member.user_id),
-            MESSAGE_UPDATED,
-            { chat_id: message.chat_id, message: withAssets(row) },
-        );
+        this.realtime.emitToUsers(memberIds, MESSAGE_UPDATED, { chat_id: message.chat_id, message: withAssets(row) });
     }
 }

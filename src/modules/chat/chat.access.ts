@@ -47,6 +47,16 @@ export class ChatAccess {
         if (chat.creator_id !== userId) throw new ForbiddenException(`Only the group admin can ${action}`);
     }
 
+    /** Ids of the chat's current members, in join order (fresh from the DB, e.g. after adding some). */
+    async memberIds(chatId: string): Promise<string[]> {
+        const rows = await this.prisma.chat_members.findMany({
+            where: { chat_id: chatId },
+            orderBy: MEMBER_ORDER,
+            select: { user_id: true },
+        });
+        return rows.map((row) => row.user_id);
+    }
+
     /** Ids of everyone the user has a 1:1 chat with. */
     async getFriendIds(userId: string): Promise<Set<string>> {
         const rows = await this.prisma.chat_members.findMany({
@@ -59,8 +69,15 @@ export class ChatAccess {
     /** Ids of everyone who shares any chat with the user (used for presence). */
     async getContactIds(userId: string): Promise<string[]> {
         const rows = await this.prisma.chat_members.findMany({
-            where: { user_id: { not: userId }, chat: { members: { some: { user_id: userId } } } },
-            select: { user_id: true },
+            where: {
+                user_id: { not: userId },
+                chat: {
+                    members: { some: { user_id: userId } },
+                },
+            },
+            select: {
+                user_id: true,
+            },
             distinct: ["user_id"],
         });
         return rows.map((row) => row.user_id);

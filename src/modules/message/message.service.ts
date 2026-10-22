@@ -1,4 +1,5 @@
 import { InjectQueue } from "@nestjs/bullmq";
+import { errorMessage } from "../../common/errors";
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import type { Queue } from "bullmq";
 import { MESSAGE_EDIT_WINDOW_MS, MESSAGES_PAGE_MAX, MESSAGES_PAGE_SIZE } from "../../common/constants";
@@ -57,28 +58,6 @@ export class MessageService {
         private readonly push: PushService,
         @InjectQueue(LINK_PREVIEW_QUEUE) private readonly linkPreviews: Queue<LinkPreviewJob>,
     ) {}
-
-    /** Queues a link preview when the text has a link; best effort, never fails the message. */
-    private queueLinkPreview(messageId: string, content: string): void {
-        if (!firstUrl(content)) return;
-        this.linkPreviews
-            .add("preview", { message_id: messageId })
-            .catch((error: Error) => this.logger.warn(`Couldn't queue a link preview: ${error?.message ?? error}`));
-    }
-
-    /** Pushes the message to members' devices that don't have the app open; best effort, never fails the message. */
-    private queuePush(chatId: string, memberIds: string[], sender: MessageSender, groupName: string | null, text: string): void {
-        const preview = text.length > PUSH_BODY_MAX ? `${text.slice(0, PUSH_BODY_MAX - 1)}…` : text;
-        const payload = {
-            title: groupName ?? fullName(sender),
-            body: groupName ? `${sender.first_name}: ${preview}` : preview,
-            url: `/chat/${chatId}`,
-            tag: `chat:${chatId}`,
-        };
-        this.push
-            .enqueue(memberIds.filter((id) => id !== sender.id).map((user_id) => ({ user_id, ...payload })))
-            .catch((error: Error) => this.logger.warn(`Couldn't queue message pushes: ${error?.message ?? error}`));
-    }
 
     /**
      * Persists a message, bumps the chat's activity, and delivers it in real time.
@@ -208,30 +187,12 @@ export class MessageService {
     }
 
     /**
-     * The id to store as reply_to_id: the quoted message must be in the same chat and not deleted.
-     * Undefined when the message isn't a reply.
-     */
-    private async findReplyTarget(chatId: string, replyToId: unknown): Promise<string | undefined> {
-        if (replyToId === undefined || replyToId === null || replyToId === "") return undefined;
-        const target = isValidId(replyToId)
-            ? await this.prisma.messages.findFirst({ where: { id: replyToId, chat_id: chatId }, select: { id: true, deleted_at: true } })
-            : null;
-        if (!target || target.deleted_at) {
-            throw new BadRequestException("The message you're replying to isn't available any more");
-        }
-        return target.id;
-    }
-
-    /**
      * Sets (or with null, removes) the user's reaction to a message in a chat they're in. One per person:
      * a new emoji replaces theirs. Everyone in the chat gets the updated message (MESSAGE_UPDATED).
      */
     async react(me: string, chatId: unknown, messageId: unknown, emoji: string | null) {
         const chat = await this.access.findForMember(chatId, me);
-        const message = isValidId(messageId)
-            ? await this.prisma.messages.findFirst({ where: { id: messageId, chat_id: chat.id }, select: { id: true, deleted_at: true } })
-            : null;
-        if (!message) throw new NotFoundException("Message not found");
+        const message = await this.findMessage(chat, messageId);
         if (message.deleted_at) throw new BadRequestException("You can't react to a deleted message");
 
         const key = { message_id_user_id: { message_id: message.id, user_id: me } };
@@ -256,10 +217,7 @@ export class MessageService {
      */
     async hideForMe(me: string, chatId: unknown, messageId: unknown): Promise<void> {
         const chat = await this.access.findForMember(chatId, me);
-        const message = isValidId(messageId)
-            ? await this.prisma.messages.findFirst({ where: { id: messageId, chat_id: chat.id }, select: { id: true } })
-            : null;
-        if (!message) throw new NotFoundException("Message not found");
+        const message = await this.findMessage(chat, messageId);
 
         await this.prisma.message_hidden.createMany({ data: [{ message_id: message.id, user_id: me }], skipDuplicates: true });
         this.realtime.emitToUsers([me], MESSAGE_HIDDEN, { chat_id: chat.id, message_id: message.id });
@@ -299,10 +257,7 @@ export class MessageService {
             throw new BadRequestException("This message was deleted");
         }
 
-        const targets = await Promise.all(targetIds.map((id) => this.access.loadForMember(id, sender.id)));
-        if (targets.some((target) => !target)) {
-            throw new NotFoundException("Chat not found");
-        }
+        const targets = await Promise.all(targetIds.map((id) => this.access.findForMember(id, sender.id)));
 
         const links = await this.prisma.message_attachments.findMany({
             where: { message_id: message.id },
@@ -312,7 +267,7 @@ export class MessageService {
         const attachmentIds = links.map((link) => link.asset_id);
 
         // Shares the same asset records, so files aren't uploaded again
-        for (const target of targets as ChatWithMemberIds[]) {
+        for (const target of targets) {
             await this.createAndDeliver({
                 disappearingSeconds: target.disappearing_seconds,
                 groupName: target.group_chat ? target.name : null,
@@ -344,5 +299,42 @@ export class MessageService {
             throw new BadRequestException("This message was deleted");
         }
         return message;
+    }
+
+    /**
+     * The id to store as reply_to_id: the quoted message must be in the same chat and not deleted.
+     * Undefined when the message isn't a reply.
+     */
+    private async findReplyTarget(chatId: string, replyToId: unknown): Promise<string | undefined> {
+        if (replyToId === undefined || replyToId === null || replyToId === "") return undefined;
+        const target = isValidId(replyToId)
+            ? await this.prisma.messages.findFirst({ where: { id: replyToId, chat_id: chatId }, select: { id: true, deleted_at: true } })
+            : null;
+        if (!target || target.deleted_at) {
+            throw new BadRequestException("The message you're replying to isn't available any more");
+        }
+        return target.id;
+    }
+
+    /** Queues a link preview when the text has a link; best effort, never fails the message. */
+    private queueLinkPreview(messageId: string, content: string): void {
+        if (!firstUrl(content)) return;
+        this.linkPreviews
+            .add("preview", { message_id: messageId })
+            .catch((error) => this.logger.warn(`Couldn't queue a link preview: ${errorMessage(error)}`));
+    }
+
+    /** Pushes the message to members' devices that don't have the app open; best effort, never fails the message. */
+    private queuePush(chatId: string, memberIds: string[], sender: MessageSender, groupName: string | null, text: string): void {
+        const preview = text.length > PUSH_BODY_MAX ? `${text.slice(0, PUSH_BODY_MAX - 1)}…` : text;
+        const payload = {
+            title: groupName ?? fullName(sender),
+            body: groupName ? `${sender.first_name}: ${preview}` : preview,
+            url: `/chat/${chatId}`,
+            tag: `chat:${chatId}`,
+        };
+        this.push
+            .enqueue(memberIds.filter((id) => id !== sender.id).map((user_id) => ({ user_id, ...payload })))
+            .catch((error) => this.logger.warn(`Couldn't queue message pushes: ${errorMessage(error)}`));
     }
 }

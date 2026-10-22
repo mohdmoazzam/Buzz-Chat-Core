@@ -6,6 +6,7 @@ import cookieParser from "cookie-parser";
 import express, { type NextFunction, type Request, type Response } from "express";
 import helmet from "helmet";
 import { AppModule } from "./app.module";
+import { errorMessage } from "./common/errors";
 import { AllExceptionsFilter } from "./common/filters/all-exceptions.filter";
 import { setupSwagger, SWAGGER_PATH } from "./common/swagger";
 import { createValidationPipe } from "./common/validation";
@@ -89,6 +90,6 @@ async function bootstrap() {
 process.on("unhandledRejection", (reason) => console.error("Unhandled rejection:", reason));
 
 bootstrap().catch((error) => {
-    console.error("Failed to start the server:", (error as Error).message);
+    console.error("Failed to start the server:", errorMessage(error));
     process.exit(1);
 });

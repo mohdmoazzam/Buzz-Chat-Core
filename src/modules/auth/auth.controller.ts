@@ -1,7 +1,8 @@
 import { Body, Controller, HttpCode, Post, Req, Res, UseGuards } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import type { Request, Response } from "express";
-import { AUTH_COOKIE, cookieOptions, TRY_LATER } from "../../common/constants";
+import { TRY_LATER } from "../../common/constants";
+import { clearAuthCookie, setAuthCookie } from "../../common/cookies";
 import { OptionalJwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 import { RateLimit } from "../../common/guards/rate-limit.guard";
 import { SessionService } from "../../core/session.service";
@@ -71,7 +72,7 @@ export class AuthController {
     @UseGuards(OptionalJwtAuthGuard)
     async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
         if (req.user && req.sessionId) await this.sessions.revoke(req.user.id, req.sessionId);
-        res.cookie(AUTH_COOKIE, "", { ...cookieOptions, maxAge: 0 });
+        clearAuthCookie(res);
         return { success: true, message: "Logged out successfully" };
     }
 
@@ -79,7 +80,7 @@ export class AuthController {
     private async startSession(req: Request, res: Response, user: AuthUser, message: string) {
         const sessionId = await this.sessions.create(user.id, req);
         const token = this.tokens.signUser(user.id, sessionId);
-        res.cookie(AUTH_COOKIE, token, cookieOptions);
+        setAuthCookie(res, token);
         return {
             success: true,
             message,

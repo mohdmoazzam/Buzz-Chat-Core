@@ -2,7 +2,7 @@ import { Controller, Delete, Get, NotFoundException, Param, Res } from "@nestjs/
 import { ApiParam, ApiTags } from "@nestjs/swagger";
 import type { Response } from "express";
 import { AuthenticatedController } from "../../common/base.controller";
-import { AUTH_COOKIE, cookieOptions } from "../../common/constants";
+import { clearAuthCookie } from "../../common/cookies";
 import { CurrentSession } from "../../common/decorators/current-session.decorator";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { SessionService } from "../../core/session.service";
@@ -29,7 +29,7 @@ export class SessionController extends AuthenticatedController {
     @Delete()
     async revokeAll(@CurrentUser() user: AuthUser, @Res({ passthrough: true }) res: Response) {
         await this.sessions.revokeAll(user.id);
-        res.cookie(AUTH_COOKIE, "", { ...cookieOptions, maxAge: 0 });
+        clearAuthCookie(res);
         return { success: true, message: "Logged out of all devices" };
     }
 
@@ -52,7 +52,7 @@ export class SessionController extends AuthenticatedController {
         @Res({ passthrough: true }) res: Response,
     ) {
         if (!(await this.sessions.revoke(user.id, id))) throw new NotFoundException("Device not found");
-        if (id === sessionId) res.cookie(AUTH_COOKIE, "", { ...cookieOptions, maxAge: 0 });
+        if (id === sessionId) clearAuthCookie(res);
         return { success: true, message: "Device logged out" };
     }
 }

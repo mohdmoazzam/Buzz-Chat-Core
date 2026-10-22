@@ -1,12 +1,12 @@
 import { OnWorkerEvent, Processor, WorkerHost } from "@nestjs/bullmq";
 import { Logger } from "@nestjs/common";
 import type { Job } from "bullmq";
-import { isForeignKeyViolation } from "../errors";
-import { PrismaService } from "../../core/prisma.service";
-import { RealtimeService } from "../../core/realtime.service";
-import { NEW_NOTIFICATION } from "../../socket/events";
-import { NOTIFICATION_INCLUDE, serializeNotification } from "../../modules/notification/notification.serializer";
-import { IN_APP_QUEUE, type InAppJob } from "../../modules/notification/notification.types";
+import { isForeignKeyViolation } from "../../../common/errors";
+import { PrismaService } from "../../../core/prisma.service";
+import { RealtimeService } from "../../../core/realtime.service";
+import { NEW_NOTIFICATION } from "../../../socket/events";
+import { NOTIFICATION_INCLUDE, serializeNotification } from "../notification.serializer";
+import { IN_APP_QUEUE, type InAppJob } from "../notification.types";
 
 /** Stores queued in-app notifications (rendered when queued) and pushes them to the user's open sockets. */
 @Processor(IN_APP_QUEUE, { concurrency: 10 })

@@ -52,10 +52,7 @@ export class GroupService {
 
         this.alert(allMembers, chat.id, `Welcome to ${name}`);
         this.realtime.emitToUsers(members, REFETCH_CHATS);
-        // Best effort: the group exists either way
-        await this.notifications
-            .queueNotification("group_added", { to: members, data: { chat_id: chat.id, group_name: name }, actorId: me })
-            .catch(() => undefined);
+        this.notifications.queueInBackground("group_added", { to: members, data: { chat_id: chat.id, group_name: name }, actorId: me });
         return chat.id;
     }
 
@@ -108,14 +105,12 @@ export class GroupService {
             }),
             this.access.touch(chat.id),
         ]);
-        const memberIds = await this.memberIds(chat.id);
+        const memberIds = await this.access.memberIds(chat.id);
 
         const names = newUsers.map(fullName).join(", ");
         this.alert(memberIds, chat.id, `${names} ${newUsers.length > 1 ? "were" : "was"} added to the group`);
         this.realtime.emitToUsers(memberIds, REFETCH_CHATS);
-        await this.notifications
-            .queueNotification("group_added", { to: newIds, data: { chat_id: chat.id, group_name: chat.name }, actorId: me })
-            .catch(() => undefined);
+        this.notifications.queueInBackground("group_added", { to: newIds, data: { chat_id: chat.id, group_name: chat.name }, actorId: me });
     }
 
     async removeMember(me: string, chatId: unknown, userId: unknown): Promise<void> {
@@ -203,11 +198,6 @@ export class GroupService {
         if (!newIds.every((id) => friendIds.has(id))) {
             throw new ForbiddenException("You can only add your friends to a group");
         }
-    }
-
-    private async memberIds(chatId: string): Promise<string[]> {
-        const rows = await this.prisma.chat_members.findMany({ where: { chat_id: chatId }, select: { user_id: true } });
-        return rows.map((row) => row.user_id);
     }
 
     private alert(memberIds: string[], chatId: string, message: string): void {

@@ -1,4 +1,5 @@
 import { InjectQueue } from "@nestjs/bullmq";
+import { errorMessage } from "../../common/errors";
 import { Injectable, Logger, ServiceUnavailableException } from "@nestjs/common";
 import type { Queue } from "bullmq";
 import { randomUUID } from "crypto";
@@ -72,9 +73,17 @@ export class NotificationService {
             if (!contexts.length) return;
             await withTimeout(Promise.all(channels.map((channel) => this.enqueue(channel, type, contexts, actorId))));
         } catch (error) {
-            this.logger.error(`Couldn't queue "${type}" notification: ${(error as Error)?.message ?? error}`);
+            this.logger.error(`Couldn't queue "${type}" notification: ${errorMessage(error)}`);
             throw new ServiceUnavailableException("Couldn't send the notification right now. Please try again.");
         }
+    }
+
+    /**
+     * Best effort: queues without making the caller wait, and never fails it (for notifications the
+     * action doesn't depend on, like "welcome" or "added to a group"). Failures are logged above.
+     */
+    queueInBackground<T extends NotificationType>(type: T, options: QueueNotificationOptions<T>): void {
+        this.queueNotification(type, options).catch(() => undefined);
     }
 
     /** Loads the recipients and actor in one query and builds each recipient's context. */

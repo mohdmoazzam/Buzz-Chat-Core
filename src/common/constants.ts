@@ -1,18 +1,10 @@
-import type { CookieOptions } from "express";
-import { config } from "../config/env";
 import type { gender } from "../../prisma/generated/client";
 
 // Auth / session
 
+// Set and cleared with the helpers in cookies.ts
 export const AUTH_COOKIE = "buzzChat-token";
 export const ADMIN_COOKIE = "buzzChat-admin-token";
-
-export const cookieOptions: CookieOptions = {
-    maxAge: config.tokenTtlSeconds * 1000,
-    sameSite: "none",
-    httpOnly: true,
-    secure: true,
-};
 
 export const BCRYPT_ROUNDS = 10;
 

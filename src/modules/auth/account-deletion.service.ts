@@ -1,6 +1,4 @@
-import { BadRequestException, HttpException, HttpStatus, Injectable, Logger } from "@nestjs/common";
-import { compare } from "bcrypt";
-import { createOtp, OTP_COOLDOWN, OTP_INVALID, OTP_TTL_MINUTES, otpOnCooldown, otpUnusable, wrongOtpMessage } from "../../common/utils/otp";
+import { HttpException, HttpStatus, Injectable, Logger } from "@nestjs/common";
 import { MailService } from "../../core/mail.service";
 import { PrismaService } from "../../core/prisma.service";
 import { RealtimeService } from "../../core/realtime.service";
@@ -8,7 +6,7 @@ import { SessionService } from "../../core/session.service";
 import { REFETCH_CHATS } from "../../socket/events";
 import { AssetsService } from "../assets/assets.service";
 import { MEMBER_ORDER } from "../chat/chat.access";
-import { NotificationService } from "../notification/notification.service";
+import { OtpService } from "./otp.service";
 
 // A group the user leaves behind keeps going with at least this many members; smaller ones are deleted
 const GROUP_KEEP_MIN = 2;
@@ -31,7 +29,7 @@ export class AccountDeletionService {
         private readonly sessions: SessionService,
         private readonly assets: AssetsService,
         private readonly realtime: RealtimeService,
-        private readonly notifications: NotificationService,
+        private readonly otp: OtpService,
     ) {}
 
     /** Emails a new confirmation code, replacing any earlier one. 429 within a minute of the last code. */
@@ -39,23 +37,12 @@ export class AccountDeletionService {
         if (!this.mail.isConfigured) {
             throw new HttpException("Account deletion isn't available right now (email is not set up)", HttpStatus.SERVICE_UNAVAILABLE);
         }
-        const pending = await this.prisma.account_deletions.findUnique({ where: { user_id: userId }, select: { created_at: true } });
-        if (otpOnCooldown(pending?.created_at)) throw new HttpException(OTP_COOLDOWN, HttpStatus.TOO_MANY_REQUESTS);
-
-        const { code, row } = await createOtp();
-        await this.prisma.account_deletions.upsert({ where: { user_id: userId }, create: { user_id: userId, ...row }, update: row });
-        try {
-            await this.notifications.queueNotification("account_deletion", { to: userId, data: { code, minutes: OTP_TTL_MINUTES } });
-        } catch (error) {
-            // Never queued, so let them retry straight away
-            await this.prisma.account_deletions.delete({ where: { user_id: userId } }).catch(() => undefined);
-            throw error;
-        }
+        await this.otp.send("account_deletion", userId);
     }
 
-    /** Checks the code, then deletes the account and everything that belongs only to it. */
-    async deleteAccount(userId: string, otp: string): Promise<void> {
-        await this.checkCode(userId, otp);
+    /** Checks the code, then deletes the account and everything that belongs only to it (the code included). */
+    async deleteAccount(userId: string, code: string): Promise<void> {
+        await this.otp.check("account_deletion", userId, code);
 
         const [user, memberships, ownAttachments, ownUploads] = await Promise.all([
             this.prisma.users.findUniqueOrThrow({ where: { id: userId }, select: { avatar_id: true, cover_id: true } }),
@@ -117,17 +104,5 @@ export class AccountDeletionService {
         ]);
         this.realtime.emitToUsers(contacts, REFETCH_CHATS);
         this.logger.log(`Account ${userId} deleted (${deletedIds.length} chats deleted, ${handedOver.length} groups handed over)`);
-    }
-
-    private async checkCode(userId: string, otp: string): Promise<void> {
-        const pending = await this.prisma.account_deletions.findUnique({ where: { user_id: userId } });
-        if (!pending || otpUnusable(pending)) throw new BadRequestException(OTP_INVALID);
-        if (!(await compare(otp, pending.code_hash))) {
-            const { attempts } = await this.prisma.account_deletions.update({
-                where: { user_id: userId },
-                data: { attempts: { increment: 1 } },
-            });
-            throw new BadRequestException(wrongOtpMessage(attempts));
-        }
     }
 }
