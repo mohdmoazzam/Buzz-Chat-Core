@@ -97,6 +97,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
                 content,
                 replyToId: body?.reply_to_id,
                 disappearingSeconds: chat.disappearing_seconds,
+                groupName: chat.group_chat ? chat.name : null,
             });
             return { ok: true, message_id: saved.id };
         } catch (error) {

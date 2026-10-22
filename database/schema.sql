@@ -220,6 +220,24 @@ CREATE TABLE sessions (
 );
 CREATE INDEX sessions_user_id_idx ON sessions (user_id);
 
+-- Web push: one row per browser that turned on push notifications (the browser's PushSubscription).
+-- Goes with the login session, so logging a device out stops its pushes.
+CREATE TABLE push_subscriptions (
+    id         uuid           PRIMARY KEY DEFAULT uuidv7(),
+    user_id    uuid           NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    session_id uuid           NOT NULL REFERENCES sessions (id) ON DELETE CASCADE,
+    -- The browser vendor's push service URL for this device
+    endpoint   text           NOT NULL UNIQUE,
+    -- Keys the payload is encrypted with
+    p256dh     text           NOT NULL,
+    auth       text           NOT NULL,
+    created_at timestamptz(6) NOT NULL DEFAULT now()
+);
+-- Sending to a user's devices
+CREATE INDEX push_subscriptions_user_id_idx ON push_subscriptions (user_id);
+-- Deleting a session (the cascade above)
+CREATE INDEX push_subscriptions_session_id_idx ON push_subscriptions (session_id);
+
 -- In-app notifications, written by the in-app queue worker (modules/notification)
 CREATE TABLE notifications (
     id         uuid           PRIMARY KEY DEFAULT uuidv7(),

@@ -37,6 +37,7 @@
     "@types/multer": "^2.0.0",
     "@types/node": "^24.0.0",
     "@types/passport-jwt": "^4.0.1",
+    "@types/web-push": "^3.6.4",
     "bcrypt": "^5.1.1",
     "bowser": "^2.14.1",
     "bullmq": "^6.3.19",
@@ -58,7 +59,8 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "socket.io": "^4.7.5",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@faker-js/faker": "^8.4.1",

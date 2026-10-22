@@ -4,7 +4,7 @@ import type { Queue } from "bullmq";
 import { randomUUID } from "crypto";
 import { PrismaService } from "../../core/prisma.service";
 import { fullName } from "../user/user.names";
-import { buildEmail, buildInApp } from "./notification.templates";
+import { buildEmail, buildInApp, buildPush } from "./notification.templates";
 import {
     EMAIL_QUEUE,
     IN_APP_QUEUE,
@@ -17,7 +17,9 @@ import {
     type NotificationContext,
     type NotificationData,
     type NotificationType,
+    type PushNotificationType,
 } from "./notification.types";
+import { PushService } from "./push.service";
 
 // A Redis outage shouldn't hang the request that triggered the notification
 const ENQUEUE_TIMEOUT_MS = 5000;
@@ -42,7 +44,7 @@ export interface QueueNotificationOptions<T extends NotificationType> {
 
 /**
  * Producer side of the notification system: collects what each channel needs and puts the jobs
- * on the Redis queues. The workers (EmailProcessor, InAppProcessor) deliver them with retries.
+ * on the Redis queues. The workers (EmailProcessor, InAppProcessor, PushProcessor) deliver them with retries.
  */
 @Injectable()
 export class NotificationService {
@@ -52,6 +54,7 @@ export class NotificationService {
         private readonly prisma: PrismaService,
         @InjectQueue(EMAIL_QUEUE) private readonly emailQueue: Queue<EmailJob>,
         @InjectQueue(IN_APP_QUEUE) private readonly inAppQueue: Queue<InAppJob>,
+        private readonly push: PushService,
     ) {}
 
     /**
@@ -126,6 +129,15 @@ export class NotificationService {
                             ...buildInApp(inAppType, ctx as NotificationContext<typeof inAppType>),
                             data: ctx.data as InAppJob["data"],
                         },
+                    })),
+                );
+            }
+            case "push": {
+                const pushType = type as T & PushNotificationType;
+                return this.push.enqueue(
+                    contexts.map((ctx) => ({
+                        user_id: ctx.recipient.id,
+                        ...buildPush(pushType, ctx as NotificationContext<typeof pushType>),
                     })),
                 );
             }
