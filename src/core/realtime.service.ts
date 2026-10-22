@@ -27,9 +27,15 @@ export class RealtimeService {
         }
     }
 
-    /** Whether this session (device) has a socket connected to this process, i.e. the app is open there. */
-    isSessionConnected(sessionId: string): boolean {
-        return !!this.server?.sockets.adapter.rooms.has(sessionRoom(sessionId));
+    /**
+     * Whether the app is in front on this session (device): one of its sockets on this process is in
+     * a visible, focused tab (APP_ACTIVE). A socket that never reported counts as active.
+     */
+    isSessionActive(sessionId: string): boolean {
+        const server = this.server;
+        const socketIds = server?.sockets.adapter.rooms.get(sessionRoom(sessionId));
+        if (!server || !socketIds) return false;
+        return [...socketIds].some((id) => server.sockets.sockets.get(id)?.data.active !== false);
     }
 
     /** Tells the sockets of revoked sessions why, then closes them (they only authenticated at handshake). */

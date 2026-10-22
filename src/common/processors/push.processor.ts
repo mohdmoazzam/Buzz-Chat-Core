@@ -13,9 +13,9 @@ const PUSH_TTL_SECONDS = 12 * 60 * 60;
 const VAPID = { subject: config.webPush.subject, publicKey: config.webPush.publicKey, privateKey: config.webPush.privateKey };
 
 /**
- * Sends queued pushes to each of the user's subscribed devices, except devices that have the app
- * open (a socket connected), which already get the live in-app alert. That check only sees this
- * process's sockets, so with NOTIFICATION_WORKERS=false (workers elsewhere) every device is pushed.
+ * Sends queued pushes to each of the user's subscribed devices, except devices where the app is in
+ * front (a visible, focused tab), which see the message live. A background tab still gets the push.
+ * That check only sees this process's sockets, so with NOTIFICATION_WORKERS=false every device is pushed.
  */
 @Processor(PUSH_QUEUE, { concurrency: 10 })
 export class PushProcessor extends WorkerHost {
@@ -41,7 +41,7 @@ export class PushProcessor extends WorkerHost {
         let failed = 0;
         await Promise.all(
             subscriptions
-                .filter((sub) => !this.realtime.isSessionConnected(sub.session_id))
+                .filter((sub) => !this.realtime.isSessionActive(sub.session_id))
                 .map(async (sub) => {
                     try {
                         await webpush.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, body, {

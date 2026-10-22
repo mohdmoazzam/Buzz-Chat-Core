@@ -19,7 +19,7 @@ import { ChatAccess, memberIdsOf } from "../modules/chat/chat.access";
 import { ReadStateService } from "../modules/chat/read-state.service";
 import type { MessageSender } from "../modules/message/message.serializer";
 import { MessageService } from "../modules/message/message.service";
-import { CHAT_JOINED, CHAT_LEAVED, CHAT_READ, NEW_MESSAGE, START_TYPING, STOP_TYPING } from "./events";
+import { APP_ACTIVE, CHAT_JOINED, CHAT_LEAVED, CHAT_READ, NEW_MESSAGE, START_TYPING, STOP_TYPING } from "./events";
 import { PresenceService } from "./presence.service";
 
 type SocketUser = MessageSender;
@@ -127,6 +127,12 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
     @SubscribeMessage(CHAT_LEAVED)
     onChatLeaved(): void {}
+
+    // The tab is in front (visible and focused) or not; RealtimeService.isSessionActive reads it
+    @SubscribeMessage(APP_ACTIVE)
+    onAppActive(@ConnectedSocket() socket: Socket, @MessageBody() body?: { active?: unknown }): void {
+        socket.data.active = body?.active !== false;
+    }
 
     @SubscribeMessage(CHAT_READ)
     async onChatRead(@ConnectedSocket() socket: Socket, @MessageBody() body?: { chat_id?: unknown }): Promise<void> {
