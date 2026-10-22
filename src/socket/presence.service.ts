@@ -1,7 +1,8 @@
 import { Injectable } from "@nestjs/common";
+import { PrismaService } from "../core/prisma.service";
 import { RealtimeService } from "../core/realtime.service";
 import { ChatAccess } from "../modules/chat/chat.access";
-import { ONLINE_USERS } from "./events";
+import { ONLINE_USERS, USER_LAST_SEEN } from "./events";
 
 /** Who is online, shared only with each user's own contacts. */
 @Injectable()
@@ -12,6 +13,7 @@ export class PresenceService {
     constructor(
         private readonly access: ChatAccess,
         private readonly realtime: RealtimeService,
+        private readonly prisma: PrismaService,
     ) {}
 
     isOnline(userId: string): boolean {
@@ -32,7 +34,19 @@ export class PresenceService {
             return;
         }
         this.connectionCounts.delete(userId);
-        await this.notifyContacts(userId);
+        const lastSeenAt = new Date();
+        await this.prisma.users.update({
+            where: { id: userId },
+            data: { last_seen_at: lastSeenAt },
+            select: { id: true },
+        });
+        const contacts = await this.access.getContactIds(userId);
+        const onlineContacts = contacts.filter((id) => this.isOnline(id));
+        this.realtime.emitToUsers(onlineContacts, USER_LAST_SEEN, {
+            user_id: userId,
+            last_seen_at: lastSeenAt.toISOString(),
+        });
+        await Promise.all(onlineContacts.map((id) => this.sendPresenceTo(id)));
     }
 
     /** Re-sends the user's view of which contacts are online. */
