@@ -106,6 +106,7 @@ export class ChatService {
                           )
                         : [otherMember?.avatar.url],
                     members: members.filter((m) => m.id !== me).map((m) => m.id),
+                    other_last_seen_at: !chat.group_chat ? (otherMember?.last_seen_at?.toISOString() ?? null) : null,
                     last_message: lastMessages.get(chat.id) ?? null,
                     unread_count: unread.get(chat.id) ?? 0,
                 },

@@ -18,5 +18,5 @@ export const NAME_SELECT = { id: true, first_name: true, last_name: true } as co
 /** A user loaded with NAME_SELECT. */
 export type UserName = Prisma.usersGetPayload<{ select: typeof NAME_SELECT }>;
 
-/** Columns needed to show a person in lists (name + avatar). */
-export const PERSON_SELECT = { ...NAME_SELECT, avatar: AVATAR_SELECT } as const;
+/** Columns needed to show a person in lists (name + avatar + last seen). */
+export const PERSON_SELECT = { ...NAME_SELECT, last_seen_at: true, avatar: AVATAR_SELECT } as const;
