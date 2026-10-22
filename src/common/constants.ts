@@ -57,6 +57,10 @@ export const GROUP_NAME_MAX = 50;
 export const GROUP_DESCRIPTION_MAX = 200;
 export const GROUP_MIN_MEMBERS = 3;
 export const GROUP_MAX_MEMBERS = 15;
+/** Group invite links: how long a new link works, in seconds (24 hours, 7 days, 30 days). */
+export const INVITE_EXPIRY_OPTIONS = [24 * 60 * 60, 7 * 24 * 60 * 60, 30 * 24 * 60 * 60] as const;
+/** Random bytes in an invite code (base64url, so 22 characters). */
+export const INVITE_CODE_BYTES = 16;
 /** GET /chat/:id/members page size (default and max). */
 export const MEMBERS_PAGE_SIZE = 20;
 export const MEMBERS_PAGE_MAX = 50;
@@ -82,4 +86,5 @@ export const FORWARD_MAX_CHATS = 5;
 export const GENERIC_ERROR_MESSAGE = "Something went wrong. Please try again.";
 export const TRY_LATER = "Too many attempts. Please wait a few minutes and try again.";
 export const RATE_LIMIT_DEFAULT_MESSAGE = "You're doing that too often. Please slow down.";
+export const INVITE_RATE_LIMIT_MESSAGE = "Too many invite link attempts. Please wait a few minutes and try again.";
 export const UPLOAD_RATE_LIMIT_MESSAGE = "Too many uploads. Please wait a few minutes and try again.";

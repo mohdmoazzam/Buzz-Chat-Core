@@ -1,4 +1,4 @@
-import { DISAPPEARING_OPTIONS } from "../../common/constants";
+import { DISAPPEARING_OPTIONS, INVITE_EXPIRY_OPTIONS } from "../../common/constants";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { ArrayNotEmpty, IsDefined, IsIn, IsNotEmpty, IsOptional, IsString, IsUUID, Length, MaxLength, ValidateIf } from "class-validator";
 import { GROUP_DESCRIPTION_MAX, GROUP_MAX_MEMBERS, GROUP_MIN_MEMBERS, GROUP_NAME_MAX } from "../../common/constants";
@@ -59,6 +59,12 @@ export class AddMembersDto {
     @IsUUID("7", { each: true })
     @ArrayNotEmpty()
     members!: string[];
+}
+
+export class CreateInviteDto {
+    @ApiProperty({ enum: [...INVITE_EXPIRY_OPTIONS], description: "Seconds until the link stops working" })
+    @IsIn([...INVITE_EXPIRY_OPTIONS], { message: "Choose 24 hours, 7 days or 30 days" })
+    seconds!: number;
 }
 
 export class DisappearingDto {

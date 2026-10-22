@@ -93,6 +93,15 @@ CREATE TABLE chat_members (
 -- Listing a user's chats
 CREATE INDEX chat_members_user_id_idx ON chat_members (user_id);
 
+-- Group invite links: at most one active link per group; resetting it replaces the row (and the code)
+CREATE TABLE group_invites (
+    chat_id    uuid           PRIMARY KEY REFERENCES chats (id) ON DELETE CASCADE,
+    -- Random, URL-safe; the link is <client>/join/<code>
+    code       text           NOT NULL UNIQUE,
+    expires_at timestamptz(6) NOT NULL,
+    created_at timestamptz(6) NOT NULL DEFAULT now()
+);
+
 CREATE TABLE messages (
     id          uuid           PRIMARY KEY DEFAULT uuidv7(),
     chat_id     uuid           NOT NULL REFERENCES chats (id) ON DELETE CASCADE,
