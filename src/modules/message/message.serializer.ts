@@ -20,7 +20,7 @@ export const REPLY_TO_INCLUDE = {
         attachments: {
             orderBy: { position: "asc" },
             take: 1,
-            select: { asset: { select: { url: true, mime_type: true, resource_type: true } } },
+            select: { asset: { select: { url: true, mime_type: true, resource_type: true, duration_ms: true } } },
         },
     },
 } as const;
@@ -41,7 +41,7 @@ interface ReplyToRow {
     content: string;
     deleted_at: Date | null;
     sender: UserName;
-    attachments: { asset: { url: string; mime_type: string; resource_type: string } }[];
+    attachments: { asset: { url: string; mime_type: string; resource_type: string; duration_ms: number | null } }[];
 }
 
 /** The quoted message for clients. A deleted original shows only that it was deleted, never its old text. */

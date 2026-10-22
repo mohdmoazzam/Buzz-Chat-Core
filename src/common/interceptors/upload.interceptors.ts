@@ -27,3 +27,6 @@ const filesUpload = multer({
 
 /** Up to UPLOAD_MAX_FILES files of any type in the "files" field (POST /assets only). */
 export const FilesUpload = multerInterceptor(filesUpload.array("files", UPLOAD_MAX_FILES));
+
+/** One file in the "file" field, plus text fields (POST /assets/voice). */
+export const SingleFileUpload = multerInterceptor(filesUpload.single("file"));

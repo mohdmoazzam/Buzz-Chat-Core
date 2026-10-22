@@ -17,7 +17,7 @@ interface LastMessagePreview {
     id: string;
     deleted_at: Date | null;
     content: string;
-    attachments: { url: string }[];
+    attachments: { url: string; duration_ms: number | null }[];
     created_at: Date;
     sender: { id: string; first_name: string; last_name: string };
 }
@@ -27,7 +27,7 @@ interface LastMessageRow {
     deleted_at: Date | null;
     chat_id: string;
     content: string;
-    attachments: { url: string }[];
+    attachments: { url: string; duration_ms: number | null }[];
     created_at: Date;
     sender_id: string;
     first_name: string;
@@ -238,9 +238,9 @@ export class ChatService {
         const rows = await this.prisma.$queryRaw<LastMessageRow[]>`
             SELECT DISTINCT ON (m.chat_id)
                 m.chat_id, m.id, m.content, m.deleted_at, m.created_at, u.id AS sender_id, u.first_name, u.last_name,
-                -- Only the URLs are needed to describe the attachment type
+                -- The URL tells the attachment type; only voice messages have a duration
                 COALESCE((
-                    SELECT json_agg(json_build_object('url', a.url) ORDER BY ma.position)
+                    SELECT json_agg(json_build_object('url', a.url, 'duration_ms', a.duration_ms) ORDER BY ma.position)
                     FROM message_attachments ma JOIN assets a ON a.id = ma.asset_id
                     WHERE ma.message_id = m.id
                 ), '[]') AS attachments

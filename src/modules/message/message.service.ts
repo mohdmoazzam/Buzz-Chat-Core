@@ -37,7 +37,9 @@ interface CreateMessageInput {
 const PUSH_BODY_MAX = 200;
 
 /** "📷 Photo", "🎥 Video", ... for a message that is only files. */
-const attachmentLabel = (attachments: { mime_type: string }[]): string => {
+const attachmentLabel = (attachments: { mime_type: string; duration_ms: number | null }[]): string => {
+    // Only voice messages have a duration
+    if (attachments[0]?.duration_ms != null) return "🎤 Voice message";
     const type = attachments[0]?.mime_type ?? "";
     if (type.startsWith("image/")) return attachments.length > 1 ? `📷 ${attachments.length} photos` : "📷 Photo";
     if (type.startsWith("video/")) return "🎥 Video";

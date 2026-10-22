@@ -11,8 +11,16 @@ export const ASSET_SELECT = {
     mime_type: true,
     size_bytes: true,
     original_name: true,
+    duration_ms: true,
+    waveform: true,
     created_at: true,
 } as const;
+
+/** What a voice message stores besides its audio. */
+export interface VoiceDetails {
+    duration_ms: number;
+    waveform: number[];
+}
 
 interface UseOptions {
     /** Only images are allowed (avatars, group pictures). */
@@ -32,7 +40,7 @@ export class AssetsService {
      * Uploads files to Cloudinary and records them. `uploadedBy` is null for uploads
      * made before signing up (the register avatar).
      */
-    async upload(files: Express.Multer.File[], uploadedBy: string | null) {
+    async upload(files: Express.Multer.File[], uploadedBy: string | null, voice?: VoiceDetails) {
         if (!files.length) {
             throw new BadRequestException("Please choose a file to upload");
         }
@@ -49,6 +57,7 @@ export class AssetsService {
                             size_bytes: files[index].size,
                             original_name: files[index].originalname,
                             uploaded_by: uploadedBy,
+                            ...voice,
                         },
                         select: ASSET_SELECT,
                     }),
@@ -59,6 +68,18 @@ export class AssetsService {
             this.storage.removeInBackground(stored.map((file) => file.public_id));
             throw error;
         }
+    }
+
+    /** Uploads a recorded voice message; it's then sent like any attachment. */
+    async uploadVoice(file: Express.Multer.File | undefined, uploadedBy: string, voice: VoiceDetails) {
+        if (!file) {
+            throw new BadRequestException("Please record a voice message");
+        }
+        if (!file.mimetype.startsWith("audio/")) {
+            throw new BadRequestException("Voice messages must be audio");
+        }
+        const [asset] = await this.upload([file], uploadedBy, voice);
+        return asset;
     }
 
     /**

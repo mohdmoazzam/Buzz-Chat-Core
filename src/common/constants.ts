@@ -25,6 +25,11 @@ export const DEV_MASTER_PASSWORD_MIN_LENGTH = 12;
 export const UPLOAD_MAX_FILES = 5;
 export const UPLOAD_MAX_BYTES = 5 * 1024 * 1024;
 
+/** Longest voice message (5 minutes; ~1.2 MB at the 32 kbps clients record at). */
+export const VOICE_MAX_MS = 5 * 60 * 1000;
+/** Bars in a voice message's waveform. */
+export const VOICE_WAVEFORM_BARS = 48;
+
 // Users
 
 // 3–20 characters: letters, numbers, underscore or dot

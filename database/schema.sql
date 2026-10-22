@@ -31,6 +31,9 @@ CREATE TABLE assets (
     mime_type     text           NOT NULL,
     size_bytes    integer        NOT NULL,
     original_name text           NOT NULL,
+    -- Voice messages only: length, and the bar heights (0-100) the player draws; other files have null and {}
+    duration_ms   integer,
+    waveform      smallint[]     NOT NULL DEFAULT '{}',
     -- null for uploads made before signing up (the register avatar)
     uploaded_by   uuid,
     created_at    timestamptz(6) NOT NULL DEFAULT now()
