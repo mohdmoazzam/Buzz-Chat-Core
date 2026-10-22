@@ -2,10 +2,13 @@ import { Body, Controller, Delete, Get, Param, Post, Put, Query } from "@nestjs/
 import { ApiParam, ApiQuery, ApiTags } from "@nestjs/swagger";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { AuthenticatedController } from "../../common/base.controller";
+import { INVITE_RATE_LIMIT_MESSAGE } from "../../common/constants";
+import { RateLimit } from "../../common/guards/rate-limit.guard";
 import { PaginationQuery } from "../../common/swagger";
 import type { AuthUser } from "../user/user.serializer";
 import { ChatService } from "./chat.service";
-import { AddMembersDto, CreateGroupDto, DisappearingDto, UpdateGroupDto } from "./group.dto";
+import { AddMembersDto, CreateGroupDto, CreateInviteDto, DisappearingDto, UpdateGroupDto } from "./group.dto";
+import { GroupInviteService } from "./group-invite.service";
 import { GroupService } from "./group.service";
 
 @ApiTags("Chats")
@@ -14,6 +17,7 @@ export class ChatController extends AuthenticatedController {
     constructor(
         private readonly chats: ChatService,
         private readonly groups: GroupService,
+        private readonly invites: GroupInviteService,
     ) {
         super();
     }
@@ -36,6 +40,21 @@ export class ChatController extends AuthenticatedController {
     @Get("groups")
     async getMyGroups(@CurrentUser() user: AuthUser) {
         return { success: true, groups: await this.groups.getMyGroups(user.id) };
+    }
+
+    // Invite links: open to anyone signed in who has the code (not only friends)
+
+    @Get("invites/:code")
+    @RateLimit(30, 15, INVITE_RATE_LIMIT_MESSAGE)
+    async previewInvite(@CurrentUser() user: AuthUser, @Param("code") code: string) {
+        return { success: true, group: await this.invites.previewInvite(user.id, code) };
+    }
+
+    @Post("invites/:code/join")
+    @RateLimit(30, 15, INVITE_RATE_LIMIT_MESSAGE)
+    async joinWithInvite(@CurrentUser() user: AuthUser, @Param("code") code: string) {
+        const chatId = await this.invites.joinWithInvite(user.id, code);
+        return { success: true, message: "You joined the group", chat_id: chatId };
     }
 
     // Unread messages across all chats (tab title)
@@ -69,6 +88,25 @@ export class ChatController extends AuthenticatedController {
     async setDisappearing(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() dto: DisappearingDto) {
         const result = await this.chats.setDisappearing(user.id, id, dto.seconds);
         return { success: true, message: result.seconds ? "Disappearing messages on" : "Disappearing messages off", ...result };
+    }
+
+    // The group's invite link (admin only); POST creates it or resets it with a new code
+    @Get(":id/invite")
+    async getInvite(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+        return { success: true, invite: await this.invites.getInvite(user.id, id) };
+    }
+
+    // { seconds: 86400 | 604800 | 2592000 }
+    @Post(":id/invite")
+    async createInvite(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() dto: CreateInviteDto) {
+        const invite = await this.invites.createInvite(user.id, id, dto.seconds);
+        return { success: true, message: "Invite link ready", invite };
+    }
+
+    @Delete(":id/invite")
+    async revokeInvite(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+        await this.invites.revokeInvite(user.id, id);
+        return { success: true, message: "Invite link turned off" };
     }
 
     @Delete(":id")
