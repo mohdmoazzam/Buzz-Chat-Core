@@ -4,10 +4,13 @@ import { config } from "../../config/env";
 import { EmailTemplateService } from "./email-template.service";
 import { EmailProcessor } from "../../common/processors/email.processor";
 import { InAppProcessor } from "../../common/processors/in-app.processor";
+import { PushProcessor } from "../../common/processors/push.processor";
 import { NotificationInboxService } from "./notification-inbox.service";
 import { NotificationController } from "./notification.controller";
 import { NotificationService } from "./notification.service";
-import { EMAIL_QUEUE, IN_APP_QUEUE } from "./notification.types";
+import { EMAIL_QUEUE, IN_APP_QUEUE, PUSH_QUEUE } from "./notification.types";
+import { PushController } from "./push.controller";
+import { PushService } from "./push.service";
 
 /** ioredis options from a redis:// or rediss:// URL. */
 const redisConnection = (url: string) => {
@@ -24,8 +27,8 @@ const redisConnection = (url: string) => {
 };
 
 /**
- * Queue-based notifications. Anything can inject NotificationService to send an email or an
- * in-app notification; the jobs go to Redis and the processors deliver them with retries.
+ * Queue-based notifications. Anything can inject NotificationService to send an email, an
+ * in-app notification or a web push (or PushService for pushes of its own, like new messages); the jobs go to Redis and the processors deliver them with retries.
  * Set NOTIFICATION_WORKERS=false to only enqueue here and run the workers in another process.
  */
 @Global()
@@ -52,15 +55,26 @@ const redisConnection = (url: string) => {
                     removeOnFail: { age: 7 * 24 * 60 * 60 },
                 },
             },
+            {
+                name: PUSH_QUEUE,
+                defaultJobOptions: {
+                    attempts: 3,
+                    backoff: { type: "exponential", delay: 2000 },
+                    // Jobs carry message text, so don't keep them once sent
+                    removeOnComplete: true,
+                    removeOnFail: { age: 24 * 60 * 60 },
+                },
+            },
         ),
     ],
-    controllers: [NotificationController],
+    controllers: [NotificationController, PushController],
     providers: [
         NotificationService,
         NotificationInboxService,
         EmailTemplateService,
-        ...(config.notificationWorkers ? [EmailProcessor, InAppProcessor] : []),
+        PushService,
+        ...(config.notificationWorkers ? [EmailProcessor, InAppProcessor, PushProcessor] : []),
     ],
-    exports: [NotificationService],
+    exports: [NotificationService, PushService],
 })
 export class NotificationModule {}

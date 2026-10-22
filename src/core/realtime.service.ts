@@ -27,6 +27,11 @@ export class RealtimeService {
         }
     }
 
+    /** Whether this session (device) has a socket connected to this process, i.e. the app is open there. */
+    isSessionConnected(sessionId: string): boolean {
+        return !!this.server?.sockets.adapter.rooms.has(sessionRoom(sessionId));
+    }
+
     /** Tells the sockets of revoked sessions why, then closes them (they only authenticated at handshake). */
     endSessions(sessionIds: string[]): void {
         if (!this.server || !sessionIds.length) return;

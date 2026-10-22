@@ -39,7 +39,8 @@ model users {
   email_verification email_verifications?
   account_deletion  account_deletions?
   sessions          sessions[]
-  notifications     notifications[]   @relation("notifications_user")
+  push_subscriptions push_subscriptions[]
+  notifications    notifications[]   @relation("notifications_user")
   caused_notifications notifications[] @relation("notifications_actor")
   avatar            assets            @relation("users_avatar_idToassets", fields: [avatar_id], references: [id], onUpdate: NoAction)
   cover             assets?           @relation("users_cover_idToassets", fields: [cover_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
@@ -72,9 +73,25 @@ model sessions {
   created_at   DateTime @default(now()) @db.Timestamptz(6)
   last_seen_at DateTime @default(now()) @db.Timestamptz(6)
   expires_at   DateTime @db.Timestamptz(6)
+  push_subscriptions push_subscriptions[]
   user         users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([user_id])
+}
+
+model push_subscriptions {
+  id         String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  user_id    String   @db.Uuid
+  session_id String   @db.Uuid
+  endpoint   String   @unique
+  p256dh     String
+  auth       String
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  user       users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  session    sessions @relation(fields: [session_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id])
+  @@index([session_id])
 }
 
 model password_resets {

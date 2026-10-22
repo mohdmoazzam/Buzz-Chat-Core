@@ -1,12 +1,13 @@
 // Adding a notification:
 //   1. an entry in NotificationData (what the caller passes) and NOTIFICATION_CHANNELS (where it goes)
-//   2. a builder per channel in notification.templates.ts
+//   2. a builder per channel in notification.templates.ts (push reuses the in-app text, plus a url)
 //   email also needs a folder in templates/email/<name> (subject/html/text.ejs) + an entry in EmailTemplateData
 
 export const EMAIL_QUEUE = "email";
 export const IN_APP_QUEUE = "in-app";
+export const PUSH_QUEUE = "push";
 
-export type NotificationChannel = "email" | "in_app";
+export type NotificationChannel = "email" | "in_app" | "push";
 
 /** Every notification type and the data its caller provides. Recipient/actor details are loaded when queuing. */
 export interface NotificationData {
@@ -25,8 +26,8 @@ export const NOTIFICATION_CHANNELS = {
     password_reset: ["email"],
     email_verification: ["email"],
     account_deletion: ["email"],
-    friend_request_accepted: ["in_app"],
-    group_added: ["in_app"],
+    friend_request_accepted: ["in_app", "push"],
+    group_added: ["in_app", "push"],
 } as const satisfies { [T in NotificationType]: readonly NotificationChannel[] };
 
 type TypesOn<C extends NotificationChannel> = {
@@ -34,6 +35,7 @@ type TypesOn<C extends NotificationChannel> = {
 }[NotificationType];
 export type EmailNotificationType = TypesOn<"email">;
 export type InAppNotificationType = TypesOn<"in_app">;
+export type PushNotificationType = TypesOn<"push">;
 
 /** Everything a channel builder can use, collected once per recipient before queuing. */
 export interface NotificationContext<T extends NotificationType = NotificationType> {
@@ -71,4 +73,20 @@ export interface InAppJob {
     body: string;
     /** Stored in notifications.data for the client (e.g. which chat to open). */
     data: NotificationData[InAppNotificationType];
+}
+
+/** What the service worker shows (public/sw.js in the frontend). */
+export interface PushPayload {
+    title: string;
+    body: string;
+    /** App path opened when the notification is clicked, e.g. /chat/<id> */
+    url: string;
+    /** A newer notification with the same tag replaces the older one (one per chat) */
+    tag?: string;
+}
+
+export interface PushJob extends PushPayload {
+    user_id: string;
+    /** Endpoints already delivered to, so a retry only resends to the devices that failed. */
+    sent?: string[];
 }

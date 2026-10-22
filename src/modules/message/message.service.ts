@@ -11,6 +11,8 @@ import { MESSAGE_DELETED, MESSAGE_HIDDEN, MESSAGE_UPDATED, NEW_MESSAGE, NEW_MESS
 import { AssetsService } from "../assets/assets.service";
 import { ChatAccess, memberIdsOf, type ChatWithMemberIds } from "../chat/chat.access";
 import { ReadStateService } from "../chat/read-state.service";
+import { PushService } from "../notification/push.service";
+import { fullName } from "../user/user.names";
 import { firstUrl, LINK_PREVIEW_QUEUE, type LinkPreviewJob } from "./link-preview/link-preview.fetcher";
 import { ATTACHMENTS_INCLUDE, MESSAGE_INCLUDE, REPLY_TO_INCLUDE, withAssets, type MessageSender } from "./message.serializer";
 
@@ -26,7 +28,21 @@ interface CreateMessageInput {
     replyToId?: unknown;
     /** The chat's disappearing-messages timer (chats.disappearing_seconds); null = the message stays */
     disappearingSeconds?: number | null;
+    /** The group's name (the push notification title), or null for a 1:1 chat */
+    groupName: string | null;
 }
+
+/** Longest message text put in a push notification. */
+const PUSH_BODY_MAX = 200;
+
+/** "📷 Photo", "🎥 Video", ... for a message that is only files. */
+const attachmentLabel = (attachments: { mime_type: string }[]): string => {
+    const type = attachments[0]?.mime_type ?? "";
+    if (type.startsWith("image/")) return attachments.length > 1 ? `📷 ${attachments.length} photos` : "📷 Photo";
+    if (type.startsWith("video/")) return "🎥 Video";
+    if (type.startsWith("audio/")) return "🎵 Audio";
+    return "📎 File";
+};
 
 @Injectable()
 export class MessageService {
@@ -38,6 +54,7 @@ export class MessageService {
         private readonly assets: AssetsService,
         private readonly realtime: RealtimeService,
         private readonly readState: ReadStateService,
+        private readonly push: PushService,
         @InjectQueue(LINK_PREVIEW_QUEUE) private readonly linkPreviews: Queue<LinkPreviewJob>,
     ) {}
 
@@ -47,6 +64,20 @@ export class MessageService {
         this.linkPreviews
             .add("preview", { message_id: messageId })
             .catch((error: Error) => this.logger.warn(`Couldn't queue a link preview: ${error?.message ?? error}`));
+    }
+
+    /** Pushes the message to members' devices that don't have the app open; best effort, never fails the message. */
+    private queuePush(chatId: string, memberIds: string[], sender: MessageSender, groupName: string | null, text: string): void {
+        const preview = text.length > PUSH_BODY_MAX ? `${text.slice(0, PUSH_BODY_MAX - 1)}…` : text;
+        const payload = {
+            title: groupName ?? fullName(sender),
+            body: groupName ? `${sender.first_name}: ${preview}` : preview,
+            url: `/chat/${chatId}`,
+            tag: `chat:${chatId}`,
+        };
+        this.push
+            .enqueue(memberIds.filter((id) => id !== sender.id).map((user_id) => ({ user_id, ...payload })))
+            .catch((error: Error) => this.logger.warn(`Couldn't queue message pushes: ${error?.message ?? error}`));
     }
 
     /**
@@ -63,6 +94,7 @@ export class MessageService {
         forwarded = false,
         replyToId,
         disappearingSeconds,
+        groupName,
     }: CreateMessageInput) {
         const replyTo = await this.findReplyTarget(chatId, replyToId);
         // Persist first so the broadcast carries the real id and timestamp
@@ -89,6 +121,13 @@ export class MessageService {
             memberIds.filter((id) => id !== sender.id),
             NEW_MESSAGE_ALERT,
             { chat_id: chatId },
+        );
+        this.queuePush(
+            chatId,
+            memberIds,
+            sender,
+            groupName,
+            content || attachmentLabel(row.attachments.map((attachment) => attachment.asset)),
         );
         // Replying means you've read the chat; the message is already delivered, so this can't fail it
         await this.readState.markSent(chatId, sender.id, row.created_at, memberIds).catch(() => undefined);
@@ -135,6 +174,7 @@ export class MessageService {
             attachmentIds,
             replyToId,
             disappearingSeconds: chat.disappearing_seconds,
+            groupName: chat.group_chat ? chat.name : null,
         });
     }
 
@@ -275,6 +315,7 @@ export class MessageService {
         for (const target of targets as ChatWithMemberIds[]) {
             await this.createAndDeliver({
                 disappearingSeconds: target.disappearing_seconds,
+                groupName: target.group_chat ? target.name : null,
                 chatId: target.id,
                 memberIds: memberIdsOf(target),
                 sender,

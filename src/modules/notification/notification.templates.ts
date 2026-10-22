@@ -4,6 +4,8 @@ import type {
     InAppNotificationType,
     NotificationContext,
     NotificationType,
+    PushNotificationType,
+    PushPayload,
 } from "./notification.types";
 
 export interface InAppText {
@@ -60,8 +62,17 @@ export const IN_APP_BUILDERS: Builders<InAppNotificationType, InAppText> = {
     }),
 };
 
+/** Push notifications: the same text as in-app, plus the page a click opens. */
+export const PUSH_BUILDERS: Builders<PushNotificationType, PushPayload> = {
+    friend_request_accepted: (ctx) => ({ ...IN_APP_BUILDERS.friend_request_accepted(ctx), url: `/chat/${ctx.data.chat_id}` }),
+    group_added: (ctx) => ({ ...IN_APP_BUILDERS.group_added(ctx), url: `/chat/${ctx.data.chat_id}` }),
+};
+
 export const buildEmail = <T extends EmailNotificationType>(type: T, ctx: NotificationContext<T>): EmailContent =>
     (EMAIL_BUILDERS[type] as (ctx: NotificationContext<T>) => EmailContent)(ctx);
 
 export const buildInApp = <T extends InAppNotificationType>(type: T, ctx: NotificationContext<T>): InAppText =>
     (IN_APP_BUILDERS[type] as (ctx: NotificationContext<T>) => InAppText)(ctx);
+
+export const buildPush = <T extends PushNotificationType>(type: T, ctx: NotificationContext<T>): PushPayload =>
+    (PUSH_BUILDERS[type] as (ctx: NotificationContext<T>) => PushPayload)(ctx);

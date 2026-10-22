@@ -69,6 +69,14 @@ export const config = Object.freeze({
     // Run the queue workers in this process; "false" when a separate worker process runs them
     notificationWorkers: process.env.NOTIFICATION_WORKERS !== "false",
 
+    // Web push: a VAPID key pair from `npx web-push generate-vapid-keys` (empty = push turned off).
+    // The subject is a contact the browser push services can reach (mailto: or https:).
+    webPush: {
+        publicKey: process.env.VAPID_PUBLIC_KEY ?? "",
+        privateKey: process.env.VAPID_PRIVATE_KEY ?? "",
+        subject: process.env.VAPID_SUBJECT || parseOrigins(process.env.APP_URL)[0] || "https://buzzchatapp.vercel.app",
+    },
+
     // Transactional email (password reset codes). The sender must be verified in Brevo.
     brevo: {
         apiKey: process.env.BREVO_API_KEY ?? "",
