@@ -1,9 +1,9 @@
 import { OnWorkerEvent, Processor, WorkerHost } from "@nestjs/bullmq";
 import { Logger } from "@nestjs/common";
 import { UnrecoverableError, type Job } from "bullmq";
-import { MailService } from "../../core/mail.service";
-import { EmailTemplateService } from "../../modules/notification/email-template.service";
-import { EMAIL_QUEUE, type EmailJob } from "../../modules/notification/notification.types";
+import { MailService } from "../../../core/mail.service";
+import { EmailTemplateService } from "../email-template.service";
+import { EMAIL_QUEUE, type EmailJob } from "../notification.types";
 
 /** Renders queued emails from their EJS templates and sends them through Brevo. */
 // Brevo's free plan allows a modest send rate; the limiter keeps bursts under it

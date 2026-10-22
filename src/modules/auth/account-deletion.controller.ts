@@ -2,7 +2,8 @@ import { Body, Controller, HttpCode, Post, Res } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import type { Response } from "express";
 import { AuthenticatedController } from "../../common/base.controller";
-import { AUTH_COOKIE, cookieOptions, TRY_LATER } from "../../common/constants";
+import { TRY_LATER } from "../../common/constants";
+import { clearAuthCookie } from "../../common/cookies";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { RateLimit } from "../../common/guards/rate-limit.guard";
 import type { AuthUser } from "../user/user.serializer";
@@ -31,7 +32,7 @@ export class AccountDeletionController extends AuthenticatedController {
     @RateLimit(10, 15, TRY_LATER)
     async deleteAccount(@CurrentUser() user: AuthUser, @Body() dto: VerifyEmailDto, @Res({ passthrough: true }) res: Response) {
         await this.deletion.deleteAccount(user.id, dto.otp);
-        res.cookie(AUTH_COOKIE, "", { ...cookieOptions, maxAge: 0 });
+        clearAuthCookie(res);
         return { success: true, message: "Your account has been deleted" };
     }
 }

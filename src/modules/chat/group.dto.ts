@@ -1,7 +1,6 @@
-import { DISAPPEARING_OPTIONS, INVITE_EXPIRY_OPTIONS } from "../../common/constants";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { ArrayNotEmpty, IsDefined, IsIn, IsNotEmpty, IsOptional, IsString, IsUUID, Length, MaxLength, ValidateIf } from "class-validator";
-import { GROUP_DESCRIPTION_MAX, GROUP_MAX_MEMBERS, GROUP_MIN_MEMBERS, GROUP_NAME_MAX } from "../../common/constants";
+import { DISAPPEARING_OPTIONS, GROUP_DESCRIPTION_MAX, GROUP_NAME_MAX, INVITE_EXPIRY_OPTIONS } from "../../common/constants";
 import { SkipIfMissing, ToIdList, Trim } from "../../common/validation";
 
 export class CreateGroupDto {

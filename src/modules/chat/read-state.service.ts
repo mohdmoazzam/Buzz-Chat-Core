@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { Prisma } from "../../../prisma/generated/client";
 import { PrismaService } from "../../core/prisma.service";
 import { RealtimeService } from "../../core/realtime.service";
 import { MESSAGES_READ } from "../../socket/events";
@@ -10,6 +11,16 @@ export interface ReadReceipt {
     /** Messages from before someone joined weren't theirs to read. */
     joined_at: Date;
 }
+
+// Each membership (cm) joined to its unread messages (m): sent by someone else after the member's
+// read time, and not deleted for everyone or deleted for this member. Callers add WHERE on cm.
+const UNREAD_MESSAGES = Prisma.sql`
+    FROM chat_members cm
+    JOIN messages m ON m.chat_id = cm.chat_id
+        AND m.created_at > cm.last_read_at
+        AND m.sender_id <> cm.user_id
+        AND m.deleted_at IS NULL
+        AND NOT EXISTS (SELECT 1 FROM message_hidden h WHERE h.message_id = m.id AND h.user_id = cm.user_id)`;
 
 /**
  * Read receipts and unread counts, both from chat_members.last_read_at.
@@ -60,13 +71,7 @@ export class ReadStateService {
         if (!chatIds.length) return new Map();
         const rows = await this.prisma.$queryRaw<{ chat_id: string; unread: number }[]>`
             SELECT cm.chat_id, COUNT(m.id)::int AS unread
-            FROM chat_members cm
-            JOIN messages m ON m.chat_id = cm.chat_id
-                AND m.created_at > cm.last_read_at
-                AND m.sender_id <> cm.user_id
-                AND m.deleted_at IS NULL
-                -- Deleted for me: not unread either
-                AND NOT EXISTS (SELECT 1 FROM message_hidden h WHERE h.message_id = m.id AND h.user_id = cm.user_id)
+            ${UNREAD_MESSAGES}
             WHERE cm.user_id = ${userId}::uuid AND cm.chat_id = ANY(${chatIds}::uuid[])
             GROUP BY cm.chat_id`;
         return new Map(rows.map(({ chat_id, unread }) => [chat_id, unread]));
@@ -76,13 +81,7 @@ export class ReadStateService {
     async totalUnread(userId: string): Promise<number> {
         const [row] = await this.prisma.$queryRaw<{ unread: number }[]>`
             SELECT COUNT(m.id)::int AS unread
-            FROM chat_members cm
-            JOIN messages m ON m.chat_id = cm.chat_id
-                AND m.created_at > cm.last_read_at
-                AND m.sender_id <> cm.user_id
-                AND m.deleted_at IS NULL
-                -- Deleted for me: not unread either
-                AND NOT EXISTS (SELECT 1 FROM message_hidden h WHERE h.message_id = m.id AND h.user_id = cm.user_id)
+            ${UNREAD_MESSAGES}
             WHERE cm.user_id = ${userId}::uuid`;
         return row?.unread ?? 0;
     }

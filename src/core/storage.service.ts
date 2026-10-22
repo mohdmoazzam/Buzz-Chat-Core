@@ -1,4 +1,5 @@
 import { HttpException, HttpStatus, Injectable, Logger } from "@nestjs/common";
+import { errorMessage } from "../common/errors";
 import { v2 as cloudinary } from "cloudinary";
 import { randomUUID } from "crypto";
 import { config } from "../config/env";
@@ -28,32 +29,29 @@ export class StorageService {
         });
     }
 
+    /** Uploads files received in a request. */
+    upload(files: Express.Multer.File[]): Promise<StoredFile[]> {
+        return this.uploadAll(files.map(toDataUri), "auto");
+    }
+
+    /** Copies an image from a public URL (e.g. a Google profile photo) into storage. */
+    async uploadFromUrl(url: string): Promise<StoredFile> {
+        const [file] = await this.uploadAll([url], "image");
+        return file;
+    }
+
     /** Throws a 5xx instead of returning undefined, so callers never crash on a missing result. */
-    async upload(files: Express.Multer.File[]): Promise<StoredFile[]> {
+    private async uploadAll(sources: string[], resource_type: "auto" | "image"): Promise<StoredFile[]> {
         if (!this.isConfigured) {
             throw new HttpException("File uploads are not configured on the server", HttpStatus.SERVICE_UNAVAILABLE);
         }
         try {
             const results = await Promise.all(
-                files.map((file) => cloudinary.uploader.upload(toDataUri(file), { resource_type: "auto", public_id: randomUUID() })),
+                sources.map((source) => cloudinary.uploader.upload(source, { resource_type, public_id: randomUUID() })),
             );
             return results.map((res) => ({ public_id: res.public_id, url: res.secure_url, resource_type: res.resource_type }));
         } catch (error) {
-            this.logger.error(`Cloudinary upload failed: ${(error as Error)?.message ?? error}`);
-            throw new HttpException("Failed to upload file. Please try again.", HttpStatus.BAD_GATEWAY);
-        }
-    }
-
-    /** Copies an image from a public URL (e.g. a Google profile photo) into storage. */
-    async uploadFromUrl(url: string): Promise<StoredFile> {
-        if (!this.isConfigured) {
-            throw new HttpException("File uploads are not configured on the server", HttpStatus.SERVICE_UNAVAILABLE);
-        }
-        try {
-            const res = await cloudinary.uploader.upload(url, { resource_type: "image", public_id: randomUUID() });
-            return { public_id: res.public_id, url: res.secure_url, resource_type: res.resource_type };
-        } catch (error) {
-            this.logger.error(`Cloudinary upload from URL failed: ${(error as Error)?.message ?? error}`);
+            this.logger.error(`Cloudinary upload failed: ${errorMessage(error)}`);
             throw new HttpException("Failed to upload file. Please try again.", HttpStatus.BAD_GATEWAY);
         }
     }
@@ -68,7 +66,7 @@ export class StorageService {
         for (const resource_type of ["image", "video", "raw"] as const) {
             cloudinary.api
                 .delete_resources(ids, { resource_type })
-                .catch((error: Error) => this.logger.error(`Cloudinary delete (${resource_type}) failed: ${error?.message ?? error}`));
+                .catch((error) => this.logger.error(`Cloudinary delete (${resource_type}) failed: ${errorMessage(error)}`));
         }
     }
 }

@@ -49,12 +49,18 @@ export class PushService {
     async enqueue(jobs: PushJob[]): Promise<void> {
         if (!this.enabled || !jobs.length) return;
         const rows = await this.prisma.push_subscriptions.findMany({
-            where: { user_id: { in: [...new Set(jobs.map((job) => job.user_id))] } },
+            where: {
+                user_id: {
+                    in: [...new Set(jobs.map((job) => job.user_id))],
+                },
+            },
             select: { user_id: true },
             distinct: ["user_id"],
         });
         const subscribed = new Set(rows.map((row) => row.user_id));
         const wanted = jobs.filter((job) => subscribed.has(job.user_id));
-        if (wanted.length) await this.queue.addBulk(wanted.map((job) => ({ name: "push", data: job })));
+        if (wanted.length) {
+            await this.queue.addBulk(wanted.map((job) => ({ name: "push", data: job })));
+        }
     }
 }

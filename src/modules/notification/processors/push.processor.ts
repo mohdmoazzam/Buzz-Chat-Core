@@ -2,10 +2,10 @@ import { OnWorkerEvent, Processor, WorkerHost } from "@nestjs/bullmq";
 import { Logger } from "@nestjs/common";
 import type { Job } from "bullmq";
 import webpush, { WebPushError } from "web-push";
-import { config } from "../../config/env";
-import { PrismaService } from "../../core/prisma.service";
-import { RealtimeService } from "../../core/realtime.service";
-import { PUSH_QUEUE, type PushJob } from "../../modules/notification/notification.types";
+import { config } from "../../../config/env";
+import { PrismaService } from "../../../core/prisma.service";
+import { RealtimeService } from "../../../core/realtime.service";
+import { PUSH_QUEUE, type PushJob } from "../notification.types";
 
 // A push still undelivered after this long (device off) is dropped by the push service
 const PUSH_TTL_SECONDS = 12 * 60 * 60;
@@ -31,8 +31,18 @@ export class PushProcessor extends WorkerHost {
     async process(job: Job<PushJob>): Promise<void> {
         const { user_id, sent = [], ...payload } = job.data;
         const subscriptions = await this.prisma.push_subscriptions.findMany({
-            where: { user_id, endpoint: { notIn: sent }, session: { expires_at: { gt: new Date() } } },
-            select: { id: true, session_id: true, endpoint: true, p256dh: true, auth: true },
+            where: {
+                user_id: user_id,
+                endpoint: { notIn: sent },
+                session: { expires_at: { gt: new Date() } },
+            },
+            select: {
+                id: true,
+                session_id: true,
+                endpoint: true,
+                p256dh: true,
+                auth: true,
+            },
         });
 
         const body = JSON.stringify(payload);
@@ -44,11 +54,18 @@ export class PushProcessor extends WorkerHost {
                 .filter((sub) => !this.realtime.isSessionActive(sub.session_id))
                 .map(async (sub) => {
                     try {
-                        await webpush.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, body, {
-                            TTL: PUSH_TTL_SECONDS,
-                            urgency: "high",
-                            vapidDetails: VAPID,
-                        });
+                        await webpush.sendNotification(
+                            {
+                                endpoint: sub.endpoint,
+                                keys: { p256dh: sub.p256dh, auth: sub.auth },
+                            },
+                            body,
+                            {
+                                TTL: PUSH_TTL_SECONDS,
+                                urgency: "high",
+                                vapidDetails: VAPID,
+                            },
+                        );
                         delivered.push(sub.endpoint);
                     } catch (error) {
                         const status = error instanceof WebPushError ? error.statusCode : 0;
@@ -64,7 +81,10 @@ export class PushProcessor extends WorkerHost {
                 }),
         );
 
-        if (gone.length) await this.prisma.push_subscriptions.deleteMany({ where: { id: { in: gone } } });
+        if (gone.length)
+            await this.prisma.push_subscriptions.deleteMany({
+                where: { id: { in: gone } },
+            });
         if (failed) {
             // Retry only the devices that failed
             await job.updateData({ ...job.data, sent: delivered });

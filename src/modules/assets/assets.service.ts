@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger } from "@nestjs/common";
+import { errorMessage } from "../../common/errors";
 import { PrismaService } from "../../core/prisma.service";
 import { StorageService } from "../../core/storage.service";
 
@@ -113,6 +114,6 @@ export class AssetsService {
             if (!assets.length) return;
             await this.prisma.assets.deleteMany({ where: { id: { in: assets.map((asset) => asset.id) } } });
             this.storage.removeInBackground(assets.map((asset) => asset.public_id));
-        })().catch((error: Error) => this.logger.error(`Asset cleanup failed: ${error?.message ?? error}`));
+        })().catch((error) => this.logger.error(`Asset cleanup failed: ${errorMessage(error)}`));
     }
 }

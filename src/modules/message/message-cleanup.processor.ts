@@ -1,10 +1,11 @@
 import { InjectQueue, Processor, WorkerHost } from "@nestjs/bullmq";
+import { errorMessage } from "../../common/errors";
 import { Logger, type OnModuleInit } from "@nestjs/common";
 import type { Queue } from "bullmq";
 import { PrismaService } from "../../core/prisma.service";
 import { RealtimeService } from "../../core/realtime.service";
 import { MESSAGES_EXPIRED } from "../../socket/events";
-import { AssetsService } from "../../modules/assets/assets.service";
+import { AssetsService } from "../assets/assets.service";
 
 export const MESSAGE_CLEANUP_QUEUE = "message-cleanup";
 const EVERY_MS = 60 * 1000;
@@ -37,7 +38,7 @@ export class MessageCleanupProcessor extends WorkerHost implements OnModuleInit 
                 { every: EVERY_MS },
                 { name: "expire", opts: { removeOnComplete: true, removeOnFail: 50 } },
             )
-            .catch((error: Error) => this.logger.error(`Couldn't schedule message cleanup: ${error?.message ?? error}`));
+            .catch((error) => this.logger.error(`Couldn't schedule message cleanup: ${errorMessage(error)}`));
     }
 
     async process(): Promise<void> {

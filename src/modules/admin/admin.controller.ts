@@ -1,9 +1,9 @@
 import { Body, Controller, Get, HttpCode, Post, Res, UnauthorizedException } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import type { Response } from "express";
-import { config } from "../../config/env";
 import { AdminBaseController } from "../../common/base.controller";
-import { ADMIN_COOKIE, cookieOptions, TRY_LATER } from "../../common/constants";
+import { TRY_LATER } from "../../common/constants";
+import { clearAdminCookie, setAdminCookie } from "../../common/cookies";
 import { RateLimit } from "../../common/guards/rate-limit.guard";
 import { TokenService } from "../../core/token.service";
 import { AdminVerifyDto } from "./admin.dto";
@@ -26,13 +26,13 @@ export class AdminAuthController {
             throw new UnauthorizedException("Invalid admin key");
         }
         const token = this.tokens.signAdmin();
-        res.cookie(ADMIN_COOKIE, token, { ...cookieOptions, maxAge: config.adminTokenTtlSeconds * 1000 });
+        setAdminCookie(res, token);
         return { success: true, admin_token: token, message: "Authenticated successfully" };
     }
 
     @Get("logout")
     logout(@Res({ passthrough: true }) res: Response) {
-        res.cookie(ADMIN_COOKIE, "", { ...cookieOptions, maxAge: 0 });
+        clearAdminCookie(res);
         return { success: true, message: "Logged out successfully" };
     }
 }

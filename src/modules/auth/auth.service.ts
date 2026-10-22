@@ -79,12 +79,13 @@ export class AuthService implements OnModuleInit {
             throw error;
         }
 
-        // The account exists either way; an email that can't be queued isn't worth failing sign-up.
-        // A missing code can be resent; the welcome email follows verification.
-        const email = needsVerification
-            ? this.verification.sendCode(created.id)
-            : this.notifications.queueNotification("welcome", { to: created.id, data: {} });
-        email.catch(() => undefined);
+        // The account exists either way, so a failed email doesn't fail sign-up: a missing code can be
+        // resent, and verified accounts get the welcome email when they verify
+        if (needsVerification) {
+            this.verification.sendCode(created.id).catch(() => undefined);
+        } else {
+            this.notifications.queueInBackground("welcome", { to: created.id, data: {} });
+        }
         return created;
     }
 
