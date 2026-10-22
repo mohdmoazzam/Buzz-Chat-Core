@@ -27,6 +27,8 @@ export const CHAT_JOINED = "CHAT_JOINED";
 export const CHAT_LEAVED = "CHAT_LEAVED";
 
 export const ONLINE_USERS = "ONLINE_USERS";
+// Client -> server: { active } when the tab gains or loses focus/visibility (push skips only active devices)
+export const APP_ACTIVE = "APP_ACTIVE";
 // Server -> contacts: { user_id, last_seen_at } when a user fully goes offline
 export const USER_LAST_SEEN = "USER_LAST_SEEN";
 
